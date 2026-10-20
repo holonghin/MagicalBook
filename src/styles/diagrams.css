@@ -1,0 +1,118 @@
+.book-diagram { margin: 0; color: var(--muted-ink); }
+.book-diagram figcaption, .diagram-control { font-family: var(--notes) !important; color: #2c2319 !important; letter-spacing: 0 !important; }
+.route-node { font-family: var(--manuscript); }
+.book-diagram figcaption { text-align: center; font: 8px/1.5 Arial; letter-spacing: .16em; margin-top: 20px; color: #836942; }
+.diagram-control { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; margin-top: 22px; font-size: 13px; color: #745b36; }.diagram-control > span { grid-column: 1 / 3; }.diagram-control input { width: 100%; accent-color: #8c642c; cursor: pointer; }.diagram-control output { width: 40px; text-align: right; }
+.route-diagram { position: relative; height: 100%; min-height: 210px; width: 100%; }.route-diagram > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }.route-edge { stroke: #94713b; stroke-width: 2; fill: none; }.route-node { position: absolute; transform: translate(-50%, -50%); padding: 12px 22px; color: #513c25; background: #f3e6c7; border: 1px solid #a7864c; border-radius: 50%; font-size: clamp(14px, 2cqw, 24px); }.route-node:hover { background: #dfc78f; }.route-node.visited { box-shadow: 0 0 0 4px #b6924733; background: #e5d1a4; }
+@media (max-width: 800px) { .book-diagram figcaption { font-size: 6px; margin-top: 10px; }.cardinal { font-size: 9px; }.diagram-control { font-size: 10px; margin-top: 10px; gap: 4px; }.route-diagram { min-height: 120px; } }
+@media (max-width: 560px) and (orientation: portrait) { .book-diagram figcaption { margin-top: 5px; font-size: 6px; }.compass-illustration { max-width: 180px; }.diagram-control { margin-top: 8px; } }
+.book-diagram figcaption { font-size: 12px; }
+.diagram-control input { appearance: none; height: 3px; background: #69533188; border-radius: 50%; }
+.diagram-control input::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px; background: #c4a15e; border: 1px solid #49351b; border-radius: 50%; }
+.diagram-control input::-moz-range-thumb { width: 14px; height: 14px; background: #c4a15e; border: 1px solid #49351b; border-radius: 50%; }
+/* Graphs use one persistent world; all unlocks share its measured coordinates. */
+.route-diagram { width: 100%; height: 100%; min-height: 230px; overflow: hidden; }
+.graph-scroll { width: 100%; height: calc(100% - 30px); overflow: auto; scrollbar-width: thin; scrollbar-color: #94713b66 transparent; display: grid; justify-items: center; align-items: center; }
+.graph-sizer { position: relative; flex: none; }
+.graph-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.graph-world > svg { width: 100%; height: 100%; position: absolute; inset: 0; overflow: visible; pointer-events: none; }
+.graph-world .route-node { font: 20px/1.4 var(--manuscript); max-width: 175px; min-width: 90px; padding: 9px 14px; background: #d9be86; border: 1px solid #846338aa; box-shadow: inset 0 1px #f4dfae77; }
+.node-ink { display: block; position: relative; }
+.route-heat { fill: none; stroke: #dc8d31; stroke-width: 3; filter: drop-shadow(0 0 3px #c56523); }
+.route-ember { fill: #ffdfa0; stroke: #dc8d31; stroke-width: 1; filter: drop-shadow(0 0 4px #d17c23); }
+.graph-tools { height: 30px; display: flex; justify-content: flex-end; align-items: center; gap: 6px; opacity: .65; }
+.graph-tools button { border: 0; background: transparent; color: #4a3823; font: 14px var(--notes); padding: 2px 7px; }
+.graph-tools button:hover { background: #99703a22; }
+.slot-diagram:has(.route-diagram) { min-height: 230px; flex: 1; }
+.ink-content:has(> .route-diagram), .slot-diagram > .route-diagram { height: 100%; }
+.content-error { max-width: 720px; margin: 12vh auto; padding: 30px; color: #ead6a7; font: 20px/1.7 var(--serif); }
+.block-math .katex-display { margin: .2em 0; overflow-x: auto; overflow-y: hidden; padding: .25em; }
+.block-math .katex { font-size: 1em; }
+.toolbar .tool-controls { flex-wrap: wrap; }
+@media (max-width: 600px) { .layout-diagram .block-title { font-size: 6cqw; }.page-heading { margin-bottom: 12px; }.route-diagram { min-height: 260px; } }
+/* v2 manuscript seals: layered paper, broken pen outline and registration marks. */
+.graph-scroll { position: relative; display: block; overflow: hidden; touch-action: none; user-select: none; cursor: grab; background: radial-gradient(ellipse at 40% 55%, #b48d4720, transparent 68%); }
+.graph-sizer { position: absolute; inset: 0; width: 100%; height: 100%; }
+.graph-world { will-change: transform; }
+/* A dense overview can zoom from a single seal to a very tall map. Promoting
+   that entire world at the source magnification allocates a huge raster layer.
+   Let the clipped viewport paint it during this short, bounded camera journey. */
+.route-diagram[data-reveal-mode='bounded-burn'][data-camera-locked='true'] .graph-world { will-change: auto; }
+.graph-world .route-node { min-width: 165px; max-width: 210px; min-height: 72px; padding: 18px 20px; border: 0; border-radius: 0; background: transparent; box-shadow: none; font: 22px/1.35 var(--manuscript); color: #3d2e20; isolation: isolate; }
+.graph-world .route-node:hover { background: transparent; }
+.node-seal { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.node-scorch { fill: #87603d; opacity: var(--node-scorch, 0); filter: blur(3px); }
+.node-paper { fill: #e4cd9b; fill-opacity: .72; opacity: var(--node-paper, 1); }
+.node-outline { fill: none; stroke: #685032; stroke-width: 1.15; stroke-linecap: round; stroke-linejoin: round; }
+.node-fiber { fill: none; stroke: #816443; stroke-width: .48; opacity: .52; stroke-linecap: round; }
+.node-marks { fill: none; stroke: #8b7044; stroke-width: .9; stroke-linecap: round; }
+.node-label { display: block; position: relative; z-index: 1; }
+.route-node.visited .node-paper { fill: #cfb47a; fill-opacity: .55; }
+.route-node.visited .node-outline { stroke: #85683d; }
+.route-node.visited::after { content: '·'; position: absolute; bottom: 0; right: 17px; color: #866339; font: 30px/1 Georgia; }
+.route-node.source-focus::before { content: ''; position: absolute; inset: -9px -13px; z-index: -1; background: radial-gradient(ellipse, #c59b4f42, transparent 72%); }
+.route-node.source-focus .node-outline, .route-node:hover .node-outline, .route-node:focus-visible .node-outline { stroke: #ac7936; stroke-width: 1.6; }
+.route-edge { stroke: #80613c; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.route-heat { stroke: #c58b3e; stroke-width: 2.2; filter: drop-shadow(0 0 2px #c2762c88); stroke-linecap: round; }
+.route-ember { fill: #ffe1a0; stroke: #c08639; stroke-width: 1; filter: drop-shadow(0 0 3px #ba7525aa); }
+.route-diagram[data-camera-locked='true'] .graph-scroll { cursor: wait; }
+.graph-tools { opacity: .75; }.graph-tools button:disabled { opacity: .35; }
+.route-diagram[data-dragging='true'] .graph-scroll, .route-diagram[data-dragging='true'] .route-node { cursor: grabbing; }
+.graph-scroll { overscroll-behavior: contain; -webkit-user-select: none; }
+.graph-world .route-node { touch-action: none; -webkit-user-select: none; }
+/* Graph pages are a map surface, with only a quiet manuscript caption. */
+.graph-page .page-heading { margin-bottom: 8px; flex: 0 0 auto; }
+.graph-page .eyebrow { font: 16px/1.4 var(--notes); letter-spacing: .015em; text-transform: none; }
+.graph-page .page-content { flex: 1; min-height: 0; }
+.graph-page .page-foot { opacity: .45; }
+/* Heat exists only on advancing ink fronts; completed maps return to quiet ink. */
+.route-scorch { fill: none; stroke: #68401f; stroke-width: 6; opacity: .25; stroke-linecap: round; }
+.route-flame { fill: #d58c3b; fill-opacity: .75; }
+.route-cinder { fill: #6b5337; pointer-events: none; }
+.node-heat { fill: none; stroke: #ac7432; stroke-width: 1.1; stroke-linejoin: round; pointer-events: none; }
+.node-scorch { fill: #724722; }
+/* v4: readable manuscript ink and a quiet, stable map hierarchy. Label scale
+   compensates only the graph camera; the physical book still shrinks as one. */
+.route-diagram { --graph-active: #936327; --graph-visited: #46331e; --graph-upcoming: #756343; }
+.node-label { transform: scale(var(--graph-label-scale, 1)); transform-origin: center; }
+.node-ink { display: grid; }
+.node-title, .node-compact { grid-area: 1 / 1; }
+.node-compact { opacity: 0; }
+.node-note { grid-area: 2 / 1; font: 14px/1.35 var(--notes); margin-top: 4px; opacity: 0; }
+.route-diagram[data-lod='close'] .node-note { opacity: 1; }
+.route-diagram[data-lod='overview'] .node-title { opacity: 0; }
+.route-diagram[data-lod='overview'] .node-compact { opacity: 1; }
+.route-diagram[data-lod='overview'] .node-label { background: #dec591dd; box-shadow: 0 0 5px 3px #dec591bb; }
+.route-node[data-label-visible='false'] .node-label { opacity: 0; }
+.route-node[data-node-state='upcoming'] { color: var(--graph-upcoming); }
+.route-node[data-node-state='upcoming'] .node-paper { fill-opacity: .44; }
+.route-node[data-node-state='upcoming'] .node-outline { stroke: #8b7654; stroke-opacity: .7; }
+.route-node[data-node-state='visited'] { color: var(--graph-visited); }
+.route-node[data-node-state='visited'] .node-paper { fill: #cbb17c; fill-opacity: .7; }
+.route-node[data-node-state='visited'] .node-outline { stroke: #685031; stroke-width: 1.35; }
+.route-node[data-node-state='active'] { color: #302317; }
+.route-node[data-node-state='active'] .node-paper { fill: #ecd39b; fill-opacity: .85; }
+.route-node[data-node-state='active'] .node-outline { stroke: var(--graph-active); stroke-opacity: 1; stroke-width: 1.9; filter: drop-shadow(0 0 1px #bd8e4766); }
+.route-node.is-major .node-marks { stroke-width: 1.3; }
+.route-edge { vector-effect: non-scaling-stroke; }
+.route-edge[data-edge-state='available'] { stroke: #907953; stroke-opacity: .78; }
+.route-edge[data-edge-state='visited'] { stroke: var(--graph-visited); stroke-width: 1.7; }
+.route-edge[data-edge-state='active'] { stroke: #997038; stroke-width: 1.85; }
+.node-label { pointer-events: none; }
+.route-diagram { --graph-upcoming: #5f4e35; }
+.route-diagram[data-lod='overview'] .node-label { background: none; box-shadow: none; }
+.route-diagram[data-lod='overview'] .node-compact { background: #dec591ee; box-shadow: 0 0 4px 2px #dec591bb; }
+.node-compact { align-self: center; justify-self: center; max-width: 100%; }
+/* HTML camera transforms also scale SVG strokes, so preserve projected ink
+   explicitly rather than relying on SVG-only vector-effect behavior. */
+.route-edge { vector-effect: none; stroke-width: calc(1.4px * var(--graph-stroke-scale, 1)); }
+.route-edge[data-edge-state='available'] { stroke: #816a42; stroke-opacity: .85; }
+.route-edge[data-edge-state='visited'] { stroke-width: calc(1.7px * var(--graph-stroke-scale, 1)); }
+.route-edge[data-edge-state='active'] { stroke-width: calc(1.85px * var(--graph-stroke-scale, 1)); }
+.node-outline { stroke-width: calc(1.15px * var(--graph-stroke-scale, 1)); }
+.route-node[data-node-state='visited'] .node-outline { stroke-width: calc(1.35px * var(--graph-stroke-scale, 1)); }
+.route-node[data-node-state='active'] .node-outline { stroke-width: calc(1.9px * var(--graph-stroke-scale, 1)); }
+.route-diagram[data-lod='overview'] .node-fiber, .route-diagram[data-lod='overview'] .node-marks { opacity: 0; }
+/* One actual label switches authored tiers; there is no hidden duplicate text. */
+.node-title.node-compact { opacity: 1; background: none; box-shadow: none; }
+.route-diagram[data-lod='overview'] .node-title.node-compact { opacity: 1; background: #dec591ee; box-shadow: 0 0 4px 2px #dec591bb; }

@@ -1,0 +1,66 @@
+# Dependencies, production output and generated test artifacts
+node_modules/
+/dist/
+/test-results/
+/playwright-report/
+/blob-report/
+/coverage/
+.vite/
+.cache/
+
+# Archived Codex revision prompts (retain AGENTS.md, AGENT_TEMPLATE.md,
+# AGENT_CONTENT_CALC1.md and the maintained project/authoring documentation)
+/Codex_*.md
+/revisited.md
+
+# Test recordings and old project archives; authored content media stays included
+/test-videos/
+/recordings/
+/*.mp4
+/*.mov
+/*.webm
+/tests/**/*.mp4
+/tests/**/*.mov
+/tests/**/*.webm
+/docs/qa/**/*.mp4
+/docs/qa/**/*.mov
+/docs/qa/**/*.webm
+/*.zip
+
+# Local credentials and secrets; sanitized examples may be committed
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+*.credentials.json
+service-account*.json
+secrets/
+credentials/
+.aws/
+.ssh/
+.npmrc
+.netrc
+.pypirc
+
+# Local agent state, scratch files and operating-system/editor debris
+.codex/
+.agents/
+/tmp/
+/temp/
+/.deployment-check/
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini

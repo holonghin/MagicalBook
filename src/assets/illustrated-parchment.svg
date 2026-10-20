@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1000" viewBox="0 0 1600 1000" preserveAspectRatio="none">
+  <defs>
+    <radialGradient id="paper"><stop stop-color="#e5cd96"/><stop offset=".68" stop-color="#dcc18a"/><stop offset="1" stop-color="#c2a16d"/></radialGradient>
+    <filter id="wash"><feTurbulence type="fractalNoise" baseFrequency=".008 .014" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="20"/><feGaussianBlur stdDeviation="17"/></filter>
+  </defs>
+  <path fill="url(#paper)" d="M0 0h1600v1000H0z"/>
+  <g filter="url(#wash)" opacity=".16" fill="#9b784d">
+    <path d="m0 0 179 0-18 38-90 15 29 62-54 95L0 188Z"/>
+    <path d="m1254 0 346 0v170l-55-39-36-82-152 17-43-30Z"/>
+    <path d="m0 788 31-40 50 108-17 56 190 49 92 39H0Z"/>
+    <path d="m1600 739-36 33 7 72-65 77-230 48-26 31h350Z"/>
+    <path d="m803 0 93 9 63 27-97 17-81-24Z"/>
+  </g>
+  <g fill="#f1dda9" opacity=".15" filter="url(#wash)">
+    <path d="m168 156 399-44 177 73-92 118-281-40-203 25Z"/>
+    <path d="m905 613 281-14 166 76-41 98-331 34-168-71Z"/>
+  </g>
+  <g fill="none" stroke="#80613f" stroke-linecap="round" opacity=".3">
+    <path stroke-width="3" d="m0 5 157 2 54-3 156 4m449-4 170 3m297-1 125-2 184 6M6 0l-2 184 4 55-4 171m2 314 1 106-3 163m19 4 164-4 47 6 273-4m571 1 203-3 310 2m3-31 2-176-4-65m3-643-3-70 2-109"/>
+    <path stroke-width="1.5" d="m27 65 34-3m-39 7 14 1m1468 53 32 7m-30 1 16 3M62 881l17 9m-13-2 6 12m1342 34 39-5m-34 10 15-3"/>
+  </g>
+  <g fill="#806341" opacity=".19"><ellipse cx="113" cy="78" rx="8" ry="3"/><ellipse cx="1478" cy="64" rx="11" ry="4"/><ellipse cx="63" cy="922" rx="5" ry="2"/><ellipse cx="1435" cy="940" rx="13" ry="4"/><ellipse cx="1537" cy="801" rx="3" ry="5"/><ellipse cx="43" cy="412" rx="3" ry="4"/></g>
+</svg>
+

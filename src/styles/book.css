@@ -1,0 +1,179 @@
+@import './diagrams.css';
+
+:root {
+  color-scheme: dark;
+  --ink: #2b241b;
+  --muted-ink: #463a28;
+  --gold: #c49b49;
+  --parchment: #d9bd83;
+  --line: #6f512c55;
+  --cover-font: 'Baskerville', 'Palatino Linotype', Georgia, serif;
+  --manuscript: 'Segoe Print', 'Bradley Hand', 'Chalkboard SE', cursive;
+  --notes: 'Segoe Script', 'Lucida Handwriting', 'Bradley Hand', cursive;
+  --serif: 'Book Antiqua', Palatino, Georgia, serif;
+  font-family: var(--serif);
+  color: #d0bd91;
+  background: #0c1010;
+  font-synthesis: none;
+}
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button, input, select { font: inherit; }
+button { color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:disabled { opacity: .3; cursor: default; }
+button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #c19b54; outline-offset: 5px; }
+#app { height: 100svh; overflow: hidden; position: relative; background: radial-gradient(ellipse at 52% 42%, #65513d35, transparent 60%), radial-gradient(ellipse at 40% 110%, #2b352e65, transparent 70%), #0c1010; }
+.stage { position: absolute; inset: 0; display: grid; place-items: center; perspective: 2000px; overflow: hidden; }
+.book { width: 100vw; height: 100svh; position: relative; perspective: 2000px; transform-style: preserve-3d; isolation: isolate; will-change: transform; }
+.spread { position: absolute; inset: 0; visibility: hidden; }
+.is-open .spread { visibility: visible; }
+.book-outline { position: absolute; inset: -18px -22px -22px; background: #382619 url('../assets/illustrated-leather.svg') center / cover; border-radius: 9px 17px 19px 10px; box-shadow: 0 25px 60px #000b; opacity: var(--outline-opacity, 1); }
+.page-stack { position: absolute; inset: 3px -7px -13px; border-radius: 3px 6px 9px 4px; background: repeating-linear-gradient(0deg, #aa8d59 0 1px, #d4bb86 1px 3px); opacity: var(--outline-opacity, 1); }
+.page-bed { position: absolute; inset: 0; background: #d9bd83 url('../assets/illustrated-parchment.svg') center / 100% 100%; }
+.scene-host { position: absolute; inset: 0; perspective: 2000px; }
+.cover { position: absolute; z-index: 15; left: calc(50% - min(34svh, 42vw)); top: 0; width: min(68svh, 84vw); height: 100%; border: 2px solid #2b1a10; border-left: 12px solid #291b12; border-radius: 5px 15px 17px 7px; transform-origin: left center; backface-visibility: hidden; background: linear-gradient(100deg, #0004, transparent 13%, #0b08050a 75%, #160d0620), url('../assets/illustrated-leather.svg') center / 100% 100%; box-shadow: inset 5px 0 8px #0008, inset -2px 0 3px #f2cc7740, 8px 7px 0 -1px #ba9f6e, 13px 11px 0 -1px #392416, 0 32px 65px #000b; padding: 13%; display: flex; justify-content: center; align-items: center; }
+.cover::before { content: ''; position: absolute; inset: 0 auto 0 8px; width: 2px; background: #1a0e0a55; box-shadow: 3px 0 2px #b9934e25; pointer-events: none; }
+.cover-title { display: block; position: absolute; left: 13%; right: 13%; top: 30%; font: 400 clamp(32px, 4.8vw, 76px)/1.23 var(--cover-font); letter-spacing: .015em; color: #b59049; text-shadow: 0 -2px 1px #1d110bed, 0 1px 0 #ebca7d, 1px 2px 2px #1c100bb0; text-align: center; text-wrap: balance; }
+.cover-note { position: absolute; bottom: 9%; right: 8%; max-width: 55%; text-align: right; font: 15px/1.8 var(--notes); color: #120e09; transform: rotate(-5deg); text-shadow: 0 1px #b4966430; }
+.cover-note[hidden] { display: none; }
+.page, .flutter-leaf { position: absolute; inset: 0; color: var(--ink); background: #dcc18c url('../assets/illustrated-parchment.svg') center / 100% 100%; }
+.page { padding: clamp(28px, 8svh, 90px) clamp(30px, 9vw, 180px) clamp(30px, 6svh, 70px); display: flex; flex-direction: column; overflow: hidden; container-type: inline-size; }
+.page-ornament { display: none; }
+.page-heading { position: relative; margin-bottom: 4%; }
+.eyebrow { display: block; font: 14px/1.6 var(--notes); color: #332a1e; transform: rotate(-1deg); }
+.page-content { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 25px; min-height: 0; }
+.ink-slot { position: relative; }
+.ink-content { margin: 0; width: 100%; }
+.block-title { font: 400 clamp(26px, 4.4cqw, 65px)/1.38 var(--manuscript); letter-spacing: -.04em; text-wrap: balance; color: #30251b; }
+.block-paragraph { font: 400 clamp(18px, 2.25cqw, 34px)/1.7 var(--serif); max-width: 29em; color: #403421; }
+.block-quotation { font: 400 clamp(21px, 3cqw, 43px)/1.85 var(--manuscript); color: #34291c; }
+.block-caption { font: 400 clamp(12px, 1.45cqw, 22px)/1.75 var(--notes); color: #201b14; }
+.block-code { white-space: pre-wrap; font-size: clamp(16px, 2.3cqw, 32px); }
+.block-math { font-family: 'Cambria Math', 'STIX Two Math', serif; font-size: clamp(24px, 3.6cqw, 50px); line-height: 1.6; }
+.block-math math { padding: .2em; overflow: visible; }.block-math mtable { border-spacing: .4em .25em; }
+.block-bullets { font: clamp(18px, 2.4cqw, 32px)/1.8 var(--manuscript); }.block-bullets ul { margin: 0; padding-left: 1.2em; }
+.block-table table { border-collapse: collapse; width: 100%; font-size: clamp(16px, 2.3cqw, 30px); }.block-table td, .block-table th { text-align: left; padding: .5em; border-bottom: 1px solid var(--line); }
+.block-comparison { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; font-size: clamp(18px, 2.5cqw, 32px); }.block-comparison h2 { font: 400 1.2em var(--manuscript); }.block-comparison p { font-size: .85em; line-height: 1.6; }
+.block-image img { display: block; max-height: 45svh; max-width: 100%; margin: auto; }
+.page-foot { display: flex; justify-content: flex-end; gap: 20px; padding-top: 16px; margin-top: 3%; font: 12px/1.6 var(--notes); color: #473421; opacity: .75; }
+.page-foot > span:last-child { display: none; }
+.layout-split .page-content { display: grid; grid-template-columns: 1.25fr 1fr; grid-template-rows: auto auto 1fr; column-gap: 8%; row-gap: 24px; align-content: center; }
+.layout-split .slot-title { grid-column: 1; align-self: end; }.layout-split .slot-paragraph { grid-column: 1; }.layout-split .slot-caption { grid-column: 1; align-self: end; }
+.layout-split .slot-diagram, .layout-split .slot-interactive { grid-column: 2; grid-row: 1 / 4; align-self: center; }
+.layout-centered .page-content { text-align: center; gap: 30px; }.layout-centered .block-title { font-size: clamp(28px, 4.8cqw, 68px); }.layout-centered .slot-caption { margin-top: 10px; }
+.layout-diagram .page-content { gap: 14px; }.layout-diagram .block-title { font-size: 4cqw; }.layout-diagram .slot-diagram { flex: 1; min-height: 0; }
+.ink-front { position: absolute !important; inset: 0; color: #f2ad39 !important; text-shadow: 0 0 4px #efad37, 0 0 9px #d9561870; pointer-events: none; user-select: none; z-index: 3; filter: drop-shadow(0 0 2px #ee9c37); }
+.ink-front * { color: #f0ad36 !important; border-color: #eaaa38 !important; }.ink-front svg { stroke: #ed9c20 !important; }
+.effect-defs { width: 0; height: 0; position: absolute; pointer-events: none; }
+.outgoing-scene { z-index: 4; background: none; pointer-events: none; }
+.turn-leaf, .flutter-leaf { z-index: 5; transform-origin: left center; backface-visibility: hidden; box-shadow: 15px 0 40px #20130a66; }
+.turn-leaf::after, .flutter-leaf::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, #1b100900, #1b1009); opacity: var(--turn-shade, 0); pointer-events: none; }
+.flutter-leaf { border-right: 1px solid #997b4a; }
+.departing-parchment { z-index: 8; pointer-events: none; box-shadow: 0 25px 60px #21160c55; }
+.loose-parchment { clip-path: polygon(.1% .2%, 12% 0, 29% .3%, 51% 0, 78% .2%, 99.8% 0, 100% 33%, 99.7% 65%, 100% 100%, 70% 99.7%, 36% 100%, .1% 99.8%, .3% 70%, 0 42%); }
+.presenter-tools { position: fixed; right: 16px; bottom: 12px; z-index: 30; }
+.presenter-tools > summary { list-style: none; text-align: center; cursor: pointer; width: 38px; height: 32px; margin-left: auto; border-radius: 50%; color: #bfab7a; font: 22px/1 Georgia; opacity: .45; background: #18170f33; }
+.presenter-tools > summary::-webkit-details-marker { display: none; }
+.presenter-tools > summary:hover, .presenter-tools > summary:focus-visible, .presenter-tools[open] > summary { opacity: 1; }
+#app:not([data-phase='closed']) .presenter-tools > summary { color: #362b1c; background: #ebd6a54a; }
+.toolbar { position: absolute; bottom: 42px; right: 0; width: 275px; padding: 10px; background: #221d16f5; border: 1px solid #8a6a3344; border-radius: 7px; box-shadow: 0 7px 30px #0005; }
+.page-controls, .tool-controls { display: flex; justify-content: center; align-items: center; gap: 3px; }
+.page-controls { margin-bottom: 6px; }.page-position { width: 85px; text-align: center; font: 12px var(--notes); }
+.toolbar button { border: 0; background: none; border-radius: 3px; width: 34px; height: 36px; font: 21px/1 Georgia; color: #bda575; }
+.toolbar button:hover:not(:disabled), .toolbar button[aria-pressed='true'] { color: #e5c994; background: #b58c3520; }
+.toolbar button[data-action='effects'][aria-pressed='false'] { opacity: .4; }
+.help { width: min(580px, 90vw); max-height: 90svh; overflow: auto; border: 0; border-radius: 3px; padding: 40px; color: #302518; background: #ddc18b url('../assets/illustrated-parchment.svg') center / 100% 100%; box-shadow: 0 20px 80px #0009; }
+.help::backdrop { background: #090e0db8; backdrop-filter: blur(5px); }.help h2 { font: 400 28px/1.4 var(--manuscript); }.help dl { display: grid; grid-template-columns: 100px 1fr; gap: 14px; font-size: 14px; line-height: 1.5; }.help dt { font-family: monospace; font-size: 12px; }.help dd { margin: 0; }.dismiss { position: absolute; right: 12px; top: 8px; border: 0; background: none; font-size: 27px; color: #49371f; }.tempo-label { display: flex; gap: 15px; align-items: center; margin-top: 25px; }.tempo { color-scheme: light; padding: 6px; background: #e1c894; color: #3c2b18; border: 1px solid #836b43; border-radius: 3px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+@media (max-width: 800px) {
+  .page { padding: 7svh 8vw 5svh; }.page-content { gap: 14px; }.layout-split .page-content { gap: 14px 5%; }.block-title { font-size: 4.5cqw; }.block-paragraph { font-size: 2.5cqw; }.block-caption { font-size: 1.9cqw; }.block-quotation { font-size: 3cqw; }.eyebrow { font-size: 11px; }.page-foot { font-size: 9px; }.layout-centered .page-content { gap: 20px; }.cover { border-left-width: 7px; }.cover-title { font-size: clamp(32px, 7vw, 55px); }.cover-note { font-size: 12px; }
+}
+@media (max-width: 600px) and (orientation: portrait) {
+  .cover { height: 77%; top: 11.5%; }.cover-title { font-size: 10vw; }.cover-note { font-size: 12px; }
+  .page { padding: 7svh 9vw; }.layout-split .page-content { display: flex; gap: 18px; }.layout-split .slot-title, .layout-split .slot-caption { align-self: stretch; }.layout-split .slot-diagram, .layout-split .slot-interactive { align-self: center; width: 66%; }.block-title, .layout-centered .block-title { font-size: 7.2cqw; }.block-paragraph { font-size: 4.4cqw; line-height: 1.6; }.block-caption { font-size: 3.6cqw; }.block-quotation { font-size: 5.4cqw; }.page-heading { margin-bottom: 5%; }.page-foot { margin-top: 5%; }.layout-diagram .block-title { font-size: 7cqw; }
+}
+@media (max-height: 620px) {
+  .page { padding-top: 5svh; padding-bottom: 5svh; }.page-heading { margin-bottom: 2%; }.page-foot { margin-top: 2%; }.layout-centered .page-content { gap: 12px; }.block-title { font-size: min(4.4cqw, 7svh); }.block-quotation { font-size: min(3cqw, 5svh); }.layout-centered .block-title { font-size: min(4.8cqw, 8svh); }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+
+
+/* The camera approaches one real spread; the fold is physical structure, not UI. */
+.book { --cover-width: min(50vw, 68svh); }
+.cover { left: 50%; width: var(--cover-width); }
+.cover-title { color: #563c26; text-shadow: 0 -2px 1px #0d0b09, 0 1px 0 #c7a15b99, 1px 2px 1px #8c66353d; }
+.cover-note { padding: 9px 12px; color: #130f0b; font-size: 18px; background: #b2986d38; border-radius: 45% 16% 38% 12%; max-width: 70%; }
+.spread-pages { position: absolute; inset: 0; perspective: 2000px; background: #dcc18c url('../assets/illustrated-parchment.svg') center / 100% 100%; }
+.book-half { position: absolute; top: 0; bottom: 0; width: 50%; background: #dcc18c url('../assets/illustrated-parchment.svg') center / 200% 100%; }
+.left-page { left: 0; background-position: left; border-radius: 5% 0 0 2%; }
+.right-page { right: 0; background-position: right; border-radius: 0 3% 2% 0; }
+.center-fold { position: absolute; top: 0; bottom: 0; left: 48.8%; width: 2.4%; z-index: 12; pointer-events: none; opacity: var(--fold-opacity, .45); background: linear-gradient(90deg, transparent, #51392215 26%, #4936233b 46%, #ab8c5840 56%, transparent); }
+.center-fold::after { display: none; }
+.page { background: none; }
+.loose-parchment, .departing-parchment, .turn-leaf { background: #dcc18c url('../assets/illustrated-parchment.svg') center / 100% 100%; }
+.flutter-leaf { left: 50%; width: 50%; background-size: 200% 100%; background-position: right; border-radius: 0 3% 2% 0; }
+@media (max-width: 600px) and (orientation: portrait) { .book { --cover-width: 84vw; }.cover-note { font-size: 16px; padding: 6px 10px; } }
+/* Physical book coordinates: cover, sheets and hinge share one half-width. */
+.book { --cover-width: 50vw; }
+.spread { z-index: 2; clip-path: inset(-24px -24px -26px var(--binding-left, 50%)); }
+.page-viewport { position: absolute; inset: 0; overflow: hidden; border-radius: 10px; }
+.leaf-host { position: absolute; inset: 0; perspective: 2000px; pointer-events: none; z-index: 14; }
+.cover { top: 0; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; transform-style: preserve-3d; backface-visibility: visible; }
+.cover::before { display: none; }
+.cover-face, .cover-lining { position: absolute; inset: 0; border-radius: 5px 15px 17px 7px; backface-visibility: hidden; }
+.cover-face { background: linear-gradient(100deg, #0004, transparent 13%, #0b08050a 75%, #160d0620), url('../assets/illustrated-leather.svg') center / 100% 100%; border: 2px solid #2b1a10; border-left: 10px solid #291b12; box-shadow: inset 5px 0 8px #0008, inset -2px 0 3px #f2cc7740, 8px 7px 0 -1px #ba9f6e, 13px 11px 0 -1px #392416, 0 32px 65px #000b; }
+.cover-lining { transform: rotateY(180deg); background: #d5b77d url('../assets/illustrated-parchment.svg') center / 200% 100%; border: 8px solid #34251a; box-shadow: inset 0 0 18px #49321d66; }
+.cover-title { color: #957044; text-shadow: 0 -2px 1px #120d09, 0 1px 0 #e7bd71c9, 1px 2px 2px #342014, 0 0 8px #be8a3520; }
+.flutter-leaf { backface-visibility: visible; box-shadow: 3px 4px 13px #20130a40; }
+@media (max-width: 600px) and (orientation: portrait) { .book { --cover-width: 50vw; } .cover-title { font-size: 7vw; } .cover-note { font-size: 12px; } }
+
+/* Two-sided cover: no mirrored gold lettering during opening or closing.
+   A parent with preserve-3d is not sufficient to cull every descendant. */
+.cover-face, .cover-lining { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.cover-face { opacity: var(--cover-front-visibility, 1); }
+.cover-title, .cover-note { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+
+/* v4 physical-book polish: a narrow, flexible-looking free edge on the
+   ceremonial page leaves. Only the lip bends; content and regular slides
+   remain undistorted. */
+.flutter-leaf { overflow: visible; transform-style: preserve-3d; }
+.flutter-leaf::before {
+  content: ''; position: absolute; pointer-events: none;
+  top: .35%; bottom: .35%; right: -.12%; width: 12%;
+  border-radius: 0 8px 13px 0;
+  background: linear-gradient(90deg, #dfc79600, #f7dfa78a 46%, #8e6b3c34 93%);
+  transform-origin: left center;
+  transform: perspective(550px) rotateY(var(--curl-angle, 0deg));
+  box-shadow: 2px 1px 6px #2a1b0d2b;
+}
+.flutter-leaf::after { border-radius: 0 8px 12px 0; }
+
+/* Optional graph ↔ node burn-through: the original *paper and its ink* stay
+   together until the expanding charred holes consume them. Target underneath. */
+.paper-burn-outgoing {
+  z-index: 9;
+  pointer-events: none;
+  overflow: hidden;
+}
+.paper-burn-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.paper-burn-rim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 10;
+  pointer-events: none;
+  overflow: hidden;
+  filter: none;
+}
+.paper-burn-outgoing { background: #dcc18c url('../assets/illustrated-parchment.svg') center / 100% 100%; }
+.paper-burn-particles { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 11; pointer-events: none; }
+.presenter-tools > summary { width: 32px; height: 28px; font-size: 20px; transition: opacity 240ms ease, background 240ms ease; }
+.presenter-tools[data-idle='true']:not(:focus-within):not(:hover) > summary { opacity: .16; background: transparent; }
+.presenter-tools:focus-within > summary, .presenter-tools:hover > summary { opacity: .9; }
+@media (prefers-reduced-motion: reduce) { .presenter-tools > summary { transition: none; } }

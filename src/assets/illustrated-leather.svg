@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="1100" viewBox="0 0 800 1100" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="hide" x2=".9" y2="1"><stop stop-color="#352a23"/><stop offset=".48" stop-color="#2a201c"/><stop offset="1" stop-color="#1c1716"/></linearGradient>
+    <filter id="wash"><feTurbulence baseFrequency=".012 .009" numOctaves="2" seed="19"/><feDisplacementMap in="SourceGraphic" scale="12"/><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+  <path fill="url(#hide)" d="M0 0h800v1100H0z"/>
+  <g fill="#624431" opacity=".18" filter="url(#wash)">
+    <path d="M18 39 238 5 467 30 321 111 104 127 12 301Z"/>
+    <path d="m711 85 81 9-5 472-61-68 21-152-65-97Z"/>
+    <path d="m13 724 98 81 11 144 228 80-171 62L0 1071Z"/>
+    <path d="m513 904 156-139 75-23 42 281-125 61-228-4Z"/>
+  </g>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path stroke="#0f100f" stroke-width="10" d="M32 5 10 31l6 225-8 190 8 306-7 306 30 28 287 3 260-5 184 5 18-33-4-262 5-327-7-274 1-167-23-20-301 3-270-7Z"/>
+    <path stroke="#775438" stroke-width="5" opacity=".7" d="m36 13 66-3m-85 8-2 72m-2 178 5 76m-7 446 9 61-4 155 25 64 81 7m143 6 49-2m355 2 81-8 25-18-2-75m9-228-4-73m1-598-20-23-72 1"/>
+    <path stroke="#9a6e47" stroke-width="2" opacity=".5" d="m31 15 33 1m-45 13 1 40m-5 761 7 16m-1 193 26 23 43 9m620 3 40-4 13-24m9-1012-17-19-30 4"/>
+    <g stroke="#100f0e" stroke-width="3" opacity=".8">
+      <path d="m7 209 40 18 18 35 34 5m-52-40 9-21m-39 394 38-18 12-39 31-17m-43 56 22 17m717-251-37 27-9 43-34 15m43-58-15-19m-24 637-36-25-7-41-29-18m36 59-16 10"/>
+      <path d="m66 980 34-17 28 6m-13-8 12-26m491-856 35 13 32-6m-32 6 12 26"/>
+    </g>
+    <g stroke="#8f6744" stroke-width="1.7" opacity=".4">
+      <path d="m20 212 26 17 17 32m-42 336 30-16m695-205-8 40-23 9m17 620-32-24-6-30"/>
+      <path d="m68 94 28-6m-31 13 18-3m586 81 21-10M100 801l18 5m-14 5 9 3m511 210 28-4m-25 11 18-2"/>
+    </g>
+  </g>
+  <path fill="#9e7b51" opacity=".4" filter="url(#wash)" d="m405 926 157-47 163 34 16 83-70 40-239-8-34-52Z"/>
+</svg>
