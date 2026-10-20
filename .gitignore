@@ -64,3 +64,8 @@ credentials/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Development history
+FIXES*.md
+CHANGES_v*.md
+Codex_MagicalBook_*.md
