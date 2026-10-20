@@ -69,3 +69,6 @@ desktop.ini
 FIXES*.md
 CHANGES_v*.md
 Codex_MagicalBook_*.md
+
+# Local visual QA screenshots
+/docs/qa/
