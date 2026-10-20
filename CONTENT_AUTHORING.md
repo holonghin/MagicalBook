@@ -71,7 +71,7 @@ overrides in new content folders and applies these conventions:
 | Return from a node | Content burn-through + gentle restoration of the same graph/camera; no page turn |
 | Content ↔ graph page | Paired physical page journey (node visits and recap handoffs keep their own family) |
 | Graph step | Focus source → track parallel path fronts → scorch, seal, paper and title |
-| Second-act recap pages | Falling parchment; inscription overlaps landing |
+| Second-act recap pages | Opaque preprinted parchment physically covers the intact previous page |
 | Recap → completed map | Existing summary burns through to the map |
 | Mini-map shortcut | Cover/content: book/page motion then map inscription; graph: expand remaining network in place; node: restore its graph then expand |
 
@@ -353,16 +353,22 @@ visited/upcoming hierarchy and the minimum projected title size are retained.
 The presenter drawer dims/collapses after idle, with pointer/focus recovery and
 no automatic folding while keyboard focus is inside it.
 
-## Living parchment (retained from v5.1)
+## Living parchment (current falling-paper revision)
 
 Each parchment invocation (including R replay) samples a fresh restrained motion
 profile: travel time, start offset, lateral drift, rotation, pitch/yaw, flutter
-phase/amplitude/frequency, weight/deceleration, settle and tiny corner movement.
+phase/amplitude/frequency, air drag, contact/settle and tiny corner movement.
 One profile remains fixed for the active timeline, including seeks and reverse
-lifting. Text, formulas and shadows stay inside its moving paper. Inscription
-starts at 67% of the travel clock (about two-thirds descent), is 85% complete at
-landing, then finishes on the settled page. Drop text uses 1–3 concurrent origin
-regions per line; ordinary ink and paper combustion retain their existing styles.
+lifting. The incoming opaque sheet carries its content fully printed from the
+start. The actual outgoing page stays rendered beneath it, with no premature
+erase/fade. Gravity/air resistance, seeded drift/tilt, a moving shadow and a small
+damped landing settle share one clock. Logical navigation commits only after the
+sheet has landed; covered content can then be detached. Back lifts the printed
+sheet, and Back during descent retraces its current motion without snapping it
+down first. A reverse lift exposes the retained completed graph directly; other
+graph entrances retain their magical burn reveal. Ordinary ink, combustion,
+opening/closing and Mini-map choreography are unchanged. No new content settings
+are required; former drop inscription options remain compatibility timing data.
 
 For deterministic motion QA only, set `grimoire.rehearsal.dropSeed = 510` before
 activating a drop under `?deck=showcase&rehearsal`. This generates a reproducible

@@ -177,18 +177,19 @@ test('legacy saved-map recap handoff reuses the graph and inscribes it only afte
   await expect(page.locator('.route-diagram')).toHaveCount(1); await expect(page.locator('.ink-front,.effect-defs')).toHaveCount(0);
 });
 
-test('returning from a recap to a completed map also respects the cap at slow tempo', async ({ page }) => {
+test('a reverse paper lift exposes the retained printed map at slow tempo without adding a graph reveal', async ({ page }) => {
   await page.goto('/?deck=showcase&rehearsal'); await page.locator('.cover').click(); await act(page, 'skip');
   for (let i = 0; i < 13; i++) await next(page);
   const source = await page.evaluate(() => { const g = (window as any).grimoire; return { profile: g.dropProfiles.get(g.current.slide.id), options: g.current.slide.drop ?? { mode: 'content' }, duration: g.timings.drop }; });
   const travel = dropTiming(source.options, source.duration, source.profile).total / .5;
   await page.keyboard.press('?'); await page.locator('.tempo').selectOption('0.5'); await page.locator('.dismiss').click();
   await act(page, 'back'); await seek(page, 0);
-  await expect(page.locator('.route-node:visible')).toHaveCount(0);
+  await expect(page.locator('.route-node:visible')).toHaveCount(9);
   const total = await page.evaluate(() => (window as any).grimoire.timeline.duration);
-  expect(total - travel).toBeLessThanOrEqual(MAX_FULL_GRAPH_REVEAL_MS);
-  await seek(page, (travel + 750) / total);
-  const p = Number(await page.locator('[data-node="wonder"]').getAttribute('data-ink-progress'));
-  expect(p).toBeGreaterThan(0); expect(p).toBeLessThan(1);
+  expect(total).toBeCloseTo(travel, 4);
+  await seek(page, .45);
+  await expect(page.locator('[data-node="wonder"]')).toHaveAttribute('data-ink-progress', '1.000');
+  await expect(page.locator('.lifting-paper')).toHaveCSS('opacity', '1');
+  await expect(page.locator('.ink-front,.effect-defs')).toHaveCount(0);
   await act(page, 'skip'); await expect(page.locator('.route-node:visible')).toHaveCount(9);
 });

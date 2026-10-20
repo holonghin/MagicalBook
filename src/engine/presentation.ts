@@ -52,6 +52,13 @@ export class Presentation {
   private entranceSeeds = new Map<string, number>();
   private dropProfiles = new Map<string, DropProfile>();
   private dropInvocation = 0;
+  private dropBackgrounds = new Map<string, HTMLElement>();
+  private paperTransition?: {
+    source: RenderedScene; sourceIndex: number; sourceBeat: number; sourceCamera?: CameraPose;
+    target: RenderedScene; index: number; beat: number;
+    sheet: HTMLElement; background: HTMLElement; shadow: HTMLElement;
+    profile: DropProfile; progress: number; duration: number; reverse: boolean; returning: boolean;
+  };
   private temporary: HTMLElement[] = [];
   private timings: Timings;
   private tempo = 1;
@@ -135,6 +142,7 @@ export class Presentation {
   }
   private clean(preserveGraph = false) {
     this.timeline.cancel();
+    this.cancelPaper();
     this.reveals.forEach(reveal => reveal.dispose()); this.reveals = [];
     this.exits.forEach(reveal => reveal.dispose()); this.exits = [];
     this.paperBurns.forEach(burn => burn.dispose()); this.paperBurns = [];
@@ -282,7 +290,7 @@ export class Presentation {
       else this.graphState.miniMapPreview = true;
       this.graphViews.forEach(el => getGraphView(el)?.stage(-1, destination === undefined ? this.graphState!.policy.initial : this.graphState!.policy.final));
     }
-    this.handoffSources.clear(); this.paperReplay = undefined;
+    this.handoffSources.clear(); this.dropBackgrounds.clear(); this.paperReplay = undefined;
     this.graphReplay = false;
     this.graphEntrance = true;
     this.restoringGraph = false;
@@ -375,6 +383,11 @@ export class Presentation {
   back() {
     if (this.state.phase === 'closed' || this.state.phase === 'closing') return;
     if (this.state.phase === 'opening') { this.home(); return; }
+    if (this.paperTransition) {
+      if (this.paperTransition.reverse || this.paperTransition.returning) this.timeline.finish();
+      else this.reversePaper();
+      return;
+    }
     this.clean();
     if (this.state.beat > 0 && this.current) {
       const removed = this.state.beat--;
@@ -417,9 +430,22 @@ export class Presentation {
     this.restoringGraph = !!arrival.restoreGraph;
     this.expandingGraph = !!arrival.expandGraph;
     const previous = this.current?.slide;
+    const slide = this.slides[index];
+    const structural = slide.kind === 'chapter' || (slide.kind === 'finalGraph' && previous?.kind === 'recap');
+    const graphBoundary = previous && (slide.routeStep !== undefined || previous.routeStep !== undefined);
+    const forwardFamily = transition ?? ((slide.kind === 'recap' || slide.effect === 'parchmentDrop') ? 'drop'
+      : slide.effect === 'parchmentExit' || slide.drop?.mode === 'transition' ? 'handoff'
+      : structural || slide.effect === 'paperBurn' ? 'paperBurn'
+      : slide.effect === 'pageTurn' || graphBoundary ? 'page' : 'burn');
+    const selectedTransition = direction < 0 && previous ? transition ?? this.transitionPairs.get(`${slide.id}>${previous.id}`) ?? forwardFamily : forwardFamily;
+    if (direction > 0 && previous && !replay) this.transitionPairs.set(`${previous.id}>${slide.id}`, selectedTransition);
+    // A paper transition owns its two real page layers. Keep the logical source
+    // active until the incoming sheet has landed (or the outgoing one has lifted).
+    if (selectedTransition === 'drop' && this.state.effects && this.current) {
+      this.drop(slide, index, direction < 0, replay); return;
+    }
     let old = this.current?.element.cloneNode(true) as HTMLElement | undefined;
     this.state.index = index;
-    const slide = this.slides[index];
     const destination = slide.restoreSceneId ? this.slides.find(item => item.id === slide.restoreSceneId)! : slide;
     this.entranceSeed = replay ? this.entranceSeeds.get(slide.id) ?? hash(slide.id, this.deck.config.seed) : hash(`${slide.id}:visit:${++this.visit}`, this.deck.config.seed);
     this.entranceSeeds.set(slide.id, this.entranceSeed);
@@ -454,24 +480,12 @@ export class Presentation {
       const duration = this.revealDuration(850);
       this.timeline.play(duration, time => this.drawReveal(time / duration), this.complete); return;
     }
-    const structural = slide.kind === 'chapter' || (slide.kind === 'finalGraph' && previous?.kind === 'recap');
-    const graphBoundary = previous && (slide.routeStep !== undefined || previous.routeStep !== undefined);
-    const forwardFamily = transition ?? ((slide.kind === 'recap' || slide.effect === 'parchmentDrop') ? 'drop'
-      : slide.effect === 'parchmentExit' || slide.drop?.mode === 'transition' ? 'handoff'
-      : structural || slide.effect === 'paperBurn' ? 'paperBurn'
-      : slide.effect === 'pageTurn' || graphBoundary ? 'page' : 'burn');
-    const selectedTransition = direction < 0 && previous ? transition ?? this.transitionPairs.get(`${slide.id}>${previous.id}`) ?? forwardFamily : forwardFamily;
-    if (direction > 0 && previous && !replay) this.transitionPairs.set(`${previous.id}>${slide.id}`, selectedTransition);
     if (replay && this.paperReplay?.index === index) { this.burnPageThrough(slide, this.paperReplay.old.cloneNode(true) as HTMLElement, true); return; }
     if (old && !replay && selectedTransition === 'paperBurn') {
       this.burnPageThrough(slide, old);
       return;
     }
     if (selectedTransition === 'page' && !replay) { this.flipPage(old, direction); return; }
-    if (selectedTransition === 'drop') {
-      if (direction < 0 && old) this.liftParchment(old, previous!); else this.drop(slide);
-      return;
-    }
     if (selectedTransition === 'handoff') {
       if (replay) old = this.handoffSources.get(slide.id)?.cloneNode(true) as HTMLElement | undefined;
       else if (old) this.handoffSources.set(slide.id, old.cloneNode(true) as HTMLElement);
@@ -517,24 +531,6 @@ export class Presentation {
     }, this.complete);
   }
 
-  private liftParchment(old: HTMLElement, previous: Slide) {
-    const profile = this.dropProfiles.get(previous.id);
-    const timing = dropTiming(previous.drop ?? { mode: 'content' }, this.timings.drop, profile);
-    old.classList.add('loose-parchment'); old.inert = true; old.setAttribute('aria-hidden', 'true');
-    this.ui.host.append(old); this.temporary.push(old); this.prepareExit(old);
-    this.prepareReveal(this.current!, this.state.beat, true);
-    // This composition's clock is in unscaled paper time. Convert the shared
-    // reveal duration back once, so slow tempo cannot double a full-map budget.
-    const reveal = this.revealDuration() * this.tempo;
-    this.state.phase = 'dropping'; this.update();
-    this.timeline.play((timing.total + reveal) / this.tempo, elapsed => {
-      const time = elapsed * this.tempo;
-      dropPose(old, clamp((timing.total - time) / timing.duration), profile);
-      this.drawExit(clamp(time / timing.revealDuration));
-      old.style.visibility = time >= timing.total ? 'hidden' : '';
-      this.drawReveal(clamp((time - timing.total) / reveal));
-    }, this.complete);
-  }
   /** One optional paper-burn scene transition. The original slide is an
    * opaque sheet in the foreground; its ink is not separately erased. Its
    * parchment burns THROUGH from seeded random holes to reveal the next
@@ -566,22 +562,102 @@ export class Presentation {
     }, this.complete);
   }
 
-  private drop(slide: Slide) {
-    const options = slide.drop ?? { mode: 'content' as const };
+  private printPaper(scene: RenderedScene, beat: number) {
+    this.setBeats(scene, beat);
+    scene.element.querySelectorAll<HTMLElement>('.ink-content:not(.ink-front)').forEach(ink => {
+      ink.style.clipPath = ''; ink.style.maskImage = ''; ink.style.opacity = '';
+      ink.dataset.revealProgress = '1.000';
+    });
+    const graph = getGraphView(scene.element);
+    if (graph) graph.stage(this.graphStep(scene.slide), this.sceneAxis(scene.slide));
+  }
+  private copyPaper(element: HTMLElement) {
+    const copy = element.cloneNode(true) as HTMLElement;
+    const originals = element.querySelectorAll('canvas');
+    copy.querySelectorAll('canvas').forEach((canvas, i) => {
+      const original = originals[i];
+      if (original.width && original.height) canvas.getContext('2d')?.drawImage(original, 0, 0);
+    });
+    return copy;
+  }
+  private drop(slide: Slide, index: number, reverse: boolean, replay: boolean) {
+    const source = this.current!, sourceIndex = this.state.index, sourceBeat = this.state.beat;
+    const options = (reverse ? source.slide : slide).drop ?? { mode: 'content' as const };
     const seed = new URLSearchParams(location.search).has('rehearsal') && this.rehearsal.dropSeed !== undefined
       ? hash(`drop:${++this.dropInvocation}`, this.rehearsal.dropSeed) : crypto.getRandomValues(new Uint32Array(1))[0];
-    const profile = sampleDropProfile(seed);
-    this.dropProfiles.set(slide.id, profile);
+    const profile = reverse ? this.dropProfiles.get(source.slide.id) ?? sampleDropProfile(seed) : sampleDropProfile(seed);
+    if (!reverse) this.dropProfiles.set(slide.id, profile);
     const timing = dropTiming(options, this.timings.drop, profile);
-    const sheet = this.current!.element;
-    sheet.classList.add('loose-parchment');
-    this.prepareReveal(this.current!, 0, false, (1 + seed % 3) as 1 | 2 | 3);
+    const sourceGraph = getGraphView(source.element), sourceCamera = sourceGraph ? { ...sourceGraph.camera.pose } : undefined;
+    // Only shared-view/replay cases need a frozen copy. Ordinary drops retain
+    // the actual outgoing DOM, including live canvas and form/demo state.
+    const shared = source.slide.id === (slide.restoreSceneId ?? slide.id) || sourceGraph && (slide.routeStep !== undefined || slide.restoreSceneId);
+    const saved = this.copyPaper(source.element);
+    if (!reverse && !replay) this.dropBackgrounds.set(slide.id, saved);
+    const target = this.getScene(slide), beat = reverse ? target.maxBeat : 0;
+    const background = reverse ? target.element : shared ? this.copyPaper(replay ? this.dropBackgrounds.get(slide.id) ?? saved : saved) : source.element;
+    const sheet = reverse ? source.element : target.element;
+    const shadow = document.createElement('div'); shadow.className = 'paper-drop-shadow'; shadow.setAttribute('aria-hidden', 'true');
+    background.classList.add('paper-underlay'); background.inert = true;
+    sheet.classList.add('loose-parchment', reverse ? 'lifting-paper' : 'falling-paper');
+    sheet.inert = true; sheet.setAttribute('aria-hidden', 'true');
+    this.ui.host.replaceChildren(background, shadow, sheet); this.ui.host.inert = true;
+    this.printPaper(target, beat);
+    focusView(target.element, slide.focus ?? target.slide.focus);
+    this.paperTransition = { source, sourceIndex, sourceBeat, sourceCamera, target, index, beat, sheet, background, shadow, profile, progress: reverse ? 1 : 0, duration: timing.duration / this.tempo, reverse, returning: false };
+    this.navigationIntent = reverse ? 'paper-lift' : 'paper-drop';
     this.state.phase = 'dropping'; this.update();
     this.timeline.play(timing.total / this.tempo, elapsed => {
       const time = elapsed * this.tempo;
-      dropPose(sheet, time / timing.duration, profile);
-      this.drawReveal(clamp((time - timing.duration * timing.start) / timing.revealDuration));
-    }, this.complete);
+      const p = reverse ? clamp((timing.total - time) / timing.duration) : clamp(time / timing.duration);
+      this.paperTransition!.progress = p;
+      dropPose(sheet, p, profile, shadow);
+    }, () => this.finishPaper());
+  }
+  private finishPaper() {
+    const paper = this.paperTransition;
+    if (!paper) return;
+    this.paperTransition = undefined;
+    this.clearPaperLayers(paper);
+    this.current = paper.target; this.state.index = paper.index; this.state.beat = paper.beat;
+    this.ui.host.replaceChildren(paper.target.element);
+    if (getGraphView(paper.target.element)) {
+      if (!this.slides[paper.index].restoreSceneId) this.graphState!.show(paper.target.slide);
+      getGraphView(paper.target.element)!.finish();
+    }
+    this.complete();
+  }
+  private clearPaperLayers(paper: NonNullable<Presentation['paperTransition']>) {
+    paper.shadow.remove();
+    for (const element of new Set([paper.sheet, paper.background, paper.source.element, paper.target.element])) {
+      element.classList.remove('falling-paper', 'lifting-paper', 'paper-underlay');
+      element.removeAttribute('style'); element.removeAttribute('aria-hidden'); element.inert = false;
+    }
+  }
+  private cancelPaper() {
+    const paper = this.paperTransition;
+    if (!paper) return;
+    this.paperTransition = undefined; this.clearPaperLayers(paper);
+    this.current = paper.source; this.state.index = paper.sourceIndex; this.state.beat = paper.sourceBeat;
+    this.getScene(paper.source.slide);
+    this.ui.host.replaceChildren(paper.source.element);
+    if (getGraphView(paper.source.element)) {
+      this.printPaper(paper.source, paper.sourceBeat);
+      const graph = getGraphView(paper.source.element)!; graph.finish();
+      if (paper.sourceCamera) graph.camera.set(paper.sourceCamera);
+    }
+    this.ui.host.inert = false;
+  }
+  /** Back during descent retraces this exact sampled trajectory; it never
+   * first snaps the new sheet down or erases either page's printed content. */
+  private reversePaper() {
+    const paper = this.paperTransition!;
+    this.timeline.cancel(); paper.returning = true;
+    const start = paper.progress, duration = Math.max(1, start * paper.duration);
+    this.timeline.play(duration, elapsed => {
+      paper.progress = start * (1 - clamp(elapsed / duration));
+      dropPose(paper.sheet, paper.progress, paper.profile, paper.shadow);
+    }, () => { this.cancelPaper(); this.complete(); });
   }
   private handoff(slide: Slide, old?: HTMLElement, reverse = false) {
     // The existing summary is the departing sheet. Never expose the target for
@@ -622,6 +698,10 @@ export class Presentation {
   }
   replay() {
     if (this.state.phase === 'closed' || this.state.phase === 'closing') return;
+    if (this.paperTransition) {
+      const paper = this.paperTransition;
+      this.clean(); this.enter(paper.index, paper.reverse ? -1 : 1, true); return;
+    }
     if (this.state.phase === 'opening') {
       const destination = this.current?.slide.kind === 'finalGraph' ? this.state.index : undefined;
       this.setClosed(); this.open(false, destination); return;
@@ -691,6 +771,7 @@ export class Presentation {
   }
   home() {
     if (this.state.phase === 'closed' || this.state.phase === 'closing') return;
+    if (this.paperTransition) this.timeline.finish();
     // When Home interrupts opening, continue backwards from the ACTUAL pose
     // rather than jumping to a fully open book before closing.
     const interruptedOpening = this.state.phase === 'opening';

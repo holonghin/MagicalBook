@@ -1,5 +1,10 @@
 # Graph entrance and full-map reveal fix v2
 
+Later amendment: a [physical reverse paper lift](FALLING_PAPER.md) now exposes its
+retained, already printed map without re-inscription. This exception belongs to
+the falling-paper transition; normal graph entrances, full-map burn timing and
+Mini-map behavior documented below are retained.
+
 ## Cause and fix
 
 An ordinary-page return staged the persistent graph at its logical progress step.

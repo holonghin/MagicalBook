@@ -79,20 +79,35 @@ export function dropTiming(options: DropOptions, defaultDuration: number, profil
   const end = duration * start + revealDuration;
   return { duration, start, end, revealDuration, total: end + (options.mode === 'transition' ? options.exitDuration ?? 380 : 0) };
 }
-export function dropPose(sheet: HTMLElement, progress: number, profile: DropProfile = defaultDropProfile) {
+export function dropPose(sheet: HTMLElement, progress: number, profile: DropProfile = defaultDropProfile, shadow?: HTMLElement) {
   const p = progress >= 1 - 1e-9 ? 1 : clamp(progress);
-  const remaining = 1 - p;
-  // Accelerate into the fall, then air-drag and settle. At .67 of the clock
-  // travel is .68–.70 complete, so inscription begins in the air as intended.
-  const fall = ease(p ** profile.weight), height = 1 - fall;
-  const flutter = Math.sin(p * Math.PI * profile.frequency + profile.phase) * Math.sin(p * Math.PI) * remaining;
-  const x = p === 1 ? 0 : profile.offset * height + profile.drift * Math.sin(p * Math.PI) + flutter * profile.flutter;
-  const rotation = profile.rotation * height + flutter * 2 + profile.settle * Math.sin(p * Math.PI * 3) * p * remaining;
-  sheet.style.transform = `translate3d(${x}px, ${-110 * height}%,${height * 180}px) rotateX(${height * profile.pitch + flutter}deg) rotateY(${height * profile.yaw}deg) rotateZ(${rotation}deg) scale(${1 + height * .13})`;
+  const t = clamp(p / profile.contact), settling = clamp((p - profile.contact) / (1 - profile.contact));
+  // Gravity with quadratic drag approaches terminal speed; the final air
+  // cushion brakes the broad sheet before a small damped contact/settle.
+  const gravity = Math.log(Math.cosh(profile.drag * t)) / Math.log(Math.cosh(profile.drag));
+  const brake = ease(clamp((t - .52) / .48));
+  const descent = gravity * (1 - brake) + ease(gravity) * brake;
+  const flutter = Math.sin(t * Math.PI * profile.frequency + profile.phase) * Math.sin(t * Math.PI);
+  const gust = flutter * Math.sin(t * Math.PI) * profile.flutter / 950;
+  const height = 1 - clamp(descent + gust);
+  const settle = Math.sin(settling * Math.PI * 2) * (1 - settling) ** 2;
+  const lift = profile.bounce * settle;
+  const x = p === 1 ? 0 : profile.offset * height + profile.drift * Math.sin(descent * Math.PI) * Math.sqrt(height) + flutter * profile.flutter * height + settle * profile.settle * 2;
+  const rotation = profile.rotation * height + flutter * height * 2 + profile.settle * settle;
+  const pitch = height * profile.pitch + flutter * height + settle * .6;
+  sheet.style.transform = `translate3d(${x}px,calc(${-120 * height}% - ${lift}px),${height * 140 + Math.max(0, lift) * 1.4}px) rotateX(${pitch}deg) rotateY(${height * profile.yaw + settle * .2}deg) rotateZ(${rotation}deg) scale(${1 + height * .08})`;
   // Only tiny corner variations; the readable paper plane never stretches.
   const corner = profile.corner * Math.sin(p * Math.PI) * Math.sin(profile.phase + p * 5);
-  sheet.style.clipPath = `polygon(.1% .2%, 12% 0, 29% ${.3 + corner}%, 51% 0, 78% .2%, 99.8% ${Math.max(0, corner)}%, 100% 33%, ${99.7 + corner}% 65%, 100% 100%, 70% ${99.7 + corner}%, 36% 100%, .1% 99.8%, .3% 70%, 0 42%)`;
-  sheet.style.boxShadow = `0 ${8 + 40 * remaining}px ${18 + 50 * remaining}px #1b100b66`;
+  sheet.style.clipPath = p === 1 ? 'none' : `polygon(.1% .2%, 12% 0, 29% ${.3 + corner}%, 51% 0, 78% .2%, 99.8% ${Math.max(0, corner)}%, 100% 33%, ${99.7 + corner}% 65%, 100% 100%, 70% ${99.7 + corner}%, 36% 100%, .1% 99.8%, .3% 70%, 0 42%)`;
+  sheet.style.boxShadow = `0 ${3 + 20 * height}px ${5 + 24 * height}px #1b100b55`;
+  if (shadow) {
+    // A separate shadow plane is essential: the worn-edge clip on the paper
+    // would clip an ordinary box-shadow right off its silhouette.
+    shadow.style.transform = `translate(${x + height * 20}px,calc(${-120 * height}% + ${4 + height * 30 + lift * .5}px)) rotate(${rotation * .8}deg) scale(${1 + height * .06})`;
+    shadow.style.filter = `blur(${4 + height * 24 + Math.abs(lift)}px)`;
+    shadow.style.opacity = String(.06 + (1 - height) * .14);
+  }
   sheet.dataset.dropProgress = p.toFixed(3);
   sheet.dataset.dropSeed = String(profile.seed);
+  sheet.dataset.dropStage = p === 1 ? 'settled' : p >= profile.contact ? 'settling' : 'falling';
 }

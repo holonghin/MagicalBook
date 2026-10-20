@@ -2,6 +2,10 @@
 
 A reusable Vite + TypeScript presentation engine styled as an illustrated fantasy-anime grimoire: painted dark leather, heat-stamped lettering, manuscript parchment, and spatial ember-to-ink inscription.
 
+Falling-paper transitions keep the old page intact beneath an opaque, fully
+printed incoming sheet, with air drag, drift, moving shadow and a small landing
+settle. See [current falling-paper behavior and verification](docs/FALLING_PAPER.md).
+
 **Template only.** The default **Atlas of Wonder** is a complete engine showcase. Calculus I remains a content specification pending review.
 
 To create another presentation, copy `src/content/sample/` or `src/content/plain/` to a new folder and edit only that folder. It is discovered automatically at `?deck=<folder>`. See [CONTENT_AUTHORING.md](CONTENT_AUTHORING.md) for the working contract.

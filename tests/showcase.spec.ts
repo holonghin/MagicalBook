@@ -67,10 +67,10 @@ test('whole showcase: ink, 1/2/3 paper fires, graph growth in two directions, re
   await engine(page, 'next');
   const landing = 1 / (.67 + .33 / .85);
   await seek(page, .75 * landing);
-  expect(Number(await page.locator('[data-block="title"] > .ink-content:not(.ink-front)').getAttribute('data-reveal-progress'))).toBeGreaterThan(0);
+  await expect(page.locator('.falling-paper [data-block="title"] > .ink-content')).toHaveAttribute('data-reveal-progress', '1.000');
   await seek(page, landing);
-  await expect(page.locator('[data-drop-progress]')).toHaveAttribute('data-drop-progress', '1.000');
-  await expect(page.locator('[data-block="title"] > .ink-content:not(.ink-front)')).toHaveAttribute('data-reveal-progress', '0.850');
+  await expect(page.locator('.falling-paper')).toHaveAttribute('data-drop-progress', '1.000');
+  await expect(page.locator('.falling-paper [data-block="title"] > .ink-content')).toHaveAttribute('data-reveal-progress', '1.000');
   await page.screenshot({ path: 'docs/qa/next-drop.png' }); await finish(page);
   await next(page); await next(page);
   await expect(app(page)).toHaveAttribute('data-scene', '@completed-graph');

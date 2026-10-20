@@ -22,7 +22,7 @@ commit, push or publication was performed during preparation.
 
 The repository receives these files when you run `git add .`:
 
-The current exact list is [DEPLOYMENT_FILES.txt](DEPLOYMENT_FILES.txt) (347 files).
+The current exact list is [DEPLOYMENT_FILES.txt](DEPLOYMENT_FILES.txt) (354 files).
 It is a snapshot of this folder after applying `.gitignore`; new files you add
 later may change that list. `git ls-files` after staging is the final authority.
 
@@ -34,7 +34,7 @@ later may change that list. `git ls-files` after staging is the final authority.
 - `.github/workflows/deploy.yml`, `.gitignore`, `vite.config.ts`, `tsconfig.json`,
   `index.html`, `package.json`, `package-lock.json`.
 - `README.md`, `CONTENT_AUTHORING.md`, `AGENTS.md`, `AGENT_TEMPLATE.md`,
-  `AGENT_CONTENT_CALC1.md`, maintained root change/fix notes, and `docs/` including
+  `AGENT_CONTENT_CALC1.md`, and `docs/` including
   authoring guides, QA reports and PNG evidence.
 
 The ignore rules omit dependencies, `dist/`, test reports, recorded test videos,
@@ -76,7 +76,7 @@ Preparation verification passed:
   build/test/upload order, artifact path and deployment action.
 - Real Git ignore checks against 17 exclusion examples and 13 required-file
   examples, including authored content video and documentation. Temporary
-  validation metadata was removed; the project itself remains uninitialized.
+  validation metadata was removed; no project Git metadata was modified.
 - Generated HTML references `/MagicalBook/assets/`; public license and local
   font/content assets load successfully under the repository path.
 

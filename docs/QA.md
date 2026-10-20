@@ -1,5 +1,16 @@
 # Template verification
 
+The current falling-paper amendment is [physical occlusion and printed
+parchment](FALLING_PAPER.md). It supersedes historical drop/ink overlap checks:
+the old page stays intact underneath an opaque preprinted sheet, and reverse
+lifts expose the retained page. Ordinary burn effects and graph progression are
+unchanged. Historical validation counts below refer to their respective runs.
+
+Falling-paper acceptance: production build passes; all 20 affected Chromium
+checks passed on the final build. The preceding full run passed the other 41
+cases; two resource/screenshot errors in that run passed on the final rerun.
+See the report for exact scope, inspected frames and limitations.
+
 The latest targeted amendment is [graph reveal fix v2](GRAPH_REVEAL_FIX_V2.md):
 repeatable entrance burning, independent logical progress and a full-map-only
 2300 ms post-travel budget. It preserves the v6 orientation and book architecture.

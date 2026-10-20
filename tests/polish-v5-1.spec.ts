@@ -59,7 +59,7 @@ test('v6 restart resets slideshow state while graph identity and final preview r
 // The v5.1 last-view/layout-mutation contract is superseded by the authored
 // v6 policy matrix and reflow/anchor tests in polish-v6.spec.ts.
 
-test('v5.1 five parchment invocations vary, stay deterministic in flight and inscribe across landing', async ({ page }) => {
+test('five printed parchment invocations vary, stay deterministic in flight and settle at the page', async ({ page }) => {
   test.setTimeout(60_000); // five complete invocations and fifteen frame captures
   await vertical(page); for (let i = 0; i < 4; i++) await next(page); // first recap
   await expect(page.locator('#app')).toHaveAttribute('data-scene', 'recap-question');
@@ -69,7 +69,7 @@ test('v5.1 five parchment invocations vary, stay deterministic in flight and ins
   const landing = 1 / (.67 + .33 / .85);
   for (let invocation = 0; invocation < 5; invocation++) {
     await act(page, 'replay'); await seek(page, .4 * landing);
-    const sheet = page.locator('article.loose-parchment');
+    const sheet = page.locator('article.falling-paper');
     const mid = await sheet.evaluate(el => (el as HTMLElement).style.transform);
     transforms.push(mid); seeds.push((await sheet.getAttribute('data-drop-seed'))!);
     durations.push(await page.evaluate(() => (window as any).grimoire.timeline.duration));
@@ -77,15 +77,14 @@ test('v5.1 five parchment invocations vary, stay deterministic in flight and ins
     await seek(page, .8 * landing); await seek(page, .4 * landing);
     expect(await sheet.evaluate(el => (el as HTMLElement).style.transform)).toBe(mid);
     await seek(page, .66 * landing);
-    await expect(page.locator('[data-block="title"] > .ink-content:not(.ink-front)')).toHaveAttribute('data-reveal-progress', '0.000');
+    await expect(sheet.locator('[data-block="title"] > .ink-content')).toHaveAttribute('data-reveal-progress', '1.000');
     await seek(page, .75 * landing);
-    const ink = Number(await page.locator('[data-block="title"] > .ink-content:not(.ink-front)').getAttribute('data-reveal-progress'));
-    expect(ink).toBeGreaterThan(0); expect(ink).toBeLessThan(.85);
+    await expect(sheet.locator('[data-block="title"] > .ink-content')).toHaveAttribute('data-reveal-progress', '1.000');
     await expect(sheet).not.toHaveAttribute('data-drop-progress', '1.000');
     expect(await sheet.locator('[data-block="title"]').count()).toBe(1); // ink is inside moving sheet
     await page.screenshot({ path: `docs/qa/v5-drop-${invocation + 1}-75.png` });
     await seek(page, landing);
-    await expect(page.locator('[data-block="title"] > .ink-content:not(.ink-front)')).toHaveAttribute('data-reveal-progress', '0.850');
+    await expect(sheet.locator('[data-block="title"] > .ink-content')).toHaveAttribute('data-reveal-progress', '1.000');
     expect(await sheet.evaluate(el => new DOMMatrix(getComputedStyle(el).transform).isIdentity)).toBe(true);
     // The shared book camera deliberately crops the outer paper by 2.5%.
     // Landing must match the settled page exactly; its readable content is safe.
@@ -100,8 +99,8 @@ test('v5.1 five parchment invocations vary, stay deterministic in flight and ins
   durations.forEach(t => { expect(t).toBeGreaterThan(1300 * .88); expect(t).toBeLessThan(1500 * 1.12); });
   // Fresh normal invocations use sampled seeds rather than the rehearsal source.
   await page.evaluate(() => { delete (window as any).grimoire.rehearsal.dropSeed; });
-  await act(page, 'replay'); await seek(page, .4); const first = await page.locator('article').getAttribute('data-drop-seed'); await act(page, 'skip');
-  await act(page, 'replay'); await seek(page, .4); expect(await page.locator('article').getAttribute('data-drop-seed')).not.toBe(first); await act(page, 'skip');
+  await act(page, 'replay'); await seek(page, .4); const first = await page.locator('.falling-paper').getAttribute('data-drop-seed'); await act(page, 'skip');
+  await act(page, 'replay'); await seek(page, .4); expect(await page.locator('.falling-paper').getAttribute('data-drop-seed')).not.toBe(first); await act(page, 'skip');
   await act(page, 'effects'); await act(page, 'replay'); await expect(page.locator('#app')).toHaveAttribute('data-phase', 'ready');
   await expect(page.locator('.effect-defs,.flutter-leaf')).toHaveCount(0);
 });
