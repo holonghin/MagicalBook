@@ -1,0 +1,45 @@
+import type { ContentNode } from '../../../engine/content';
+import { page, tex } from '../slides/builders';
+
+export const derivatives: ContentNode[] = [
+  { id: 'D1', slides: [page('D1-rate', 'Average Slopes Become Instantaneous', tex`f'(a)=\lim_{h\to0}\frac{f(a+h)-f(a)}h=\lim_{x\to a}\frac{f(x)-f(a)}{x-a}`,
+    'At an interior point, the two-sided slope limit must exist and be finite. Next: does a tangent force continuity?', 'calc-secant',
+    'Move Q toward P from either side on f(x)=x² at a=1. At h=0, draw the limiting tangent and never evaluate the undefined quotient 0/0. P3 follows immediately.')] },
+  { id: 'D2', slides: [
+    page('D2-rules', 'The Algebra of Change', tex`\begin{aligned}(c)'&=0,\qquad(cf\pm g)'=cf'\pm g'\\ (fg)'&=f'g+fg'\\ (f/g)'&=\frac{f'g-fg'}{g^2}\quad(g\ne0)\end{aligned}`,
+      'Apply where all needed functions are defined and differentiable. A quotient derivative is not f′/g′.'),
+    page('D2-reference', 'A Small Table, Many Derivatives', tex`\begin{array}{c|cc|c}x^\alpha&\alpha x^{\alpha-1}&e^x&e^x\\ \ln x&1/x&a^x&a^x\ln a\\ \log_a x&1/(x\ln a)&\sin x&\cos x\\ \cos x&-\sin x&\tan x&\sec^2x\\ \cot x&-\csc^2x&\sec x&\sec x\tan x\\ \csc x&-\csc x\cot x&&\end{array}`,
+      'Real powers and logarithms: x > 0. Base a > 0, a ≠ 1. Trig: radians, on each natural domain.', undefined,
+      'Constant derivative is 0. Integer powers extend to their natural domains; the stated x>0 covers arbitrary real exponents. Inverse trig is reserved for D7. Static reference, not sequential derivation.'),
+  ] },
+  { id: 'D3', slides: [page('D3-chain', 'Peel the Outside, Keep the Inside', tex`(f\circ g)'(x)=f'(g(x))g'(x)`,
+    'Each removed layer leaves a factor. Five layers; every inner x-expression remains intact.', 'calc-chain',
+    'y=sin(ln(1+e^((x²+1)³))). Peel sine, logarithm, exponential, cube, x²+1 in that order. Translation by 1 inside the logarithm differentiates to zero. Accumulate all factors without u substitutions or ellipses. The final product is displayed over aligned rows for legibility.'),
+  ] },
+  { id: 'D4', slides: [page('D4-logs', 'A Variable Power Becomes a Product', tex`\begin{gathered}y=u(x)^{v(x)},\quad u>0\\ \ln y=v\ln u,\qquad \frac{y'}y=v'\ln u+v\frac{u'}u\end{gathered}`,
+    'A variable exponent needs more than the ordinary power rule. For nonzero products, ln|y| also works locally.', 'calc-log',
+    'The real variable-power formula needs u>0. The small x^x example uses x>0. Products become sums, quotients differences, powers products. Differentiate before substituting values.')] },
+  { id: 'D5', slides: [
+    page('D5-implicit', 'Differentiate the Relation', tex`F_x+F_y y'=0\quad\Rightarrow\quad y'=-\frac{F_x}{F_y}\quad(F_y\ne0)`,
+      'A local branch, not necessarily a global function. Differentiate every y term; collect y′ before inserting the point.', 'calc-circle',
+      'Under usual implicit-function conditions, e.g. F C¹ near the point and Fy≠0, there is a differentiable local graph y(x). Circle: 2x+2yy′=0, y′=−x/y for y≠0. At y=0, tangent is vertical, not a finite dy/dx. Differentiate xy using product rule, and y³ using Chain Rule.'),
+    page('D5-second', 'Differentiate Again Before Substituting', tex`\begin{gathered}2x+2yy'=0\\ 2+2(y')^2+2yy''=0\qquad(y\ne0)\end{gathered}`,
+      'Retain both (y′)² and y″. Substituting the point too early destroys the changing relation.', undefined,
+      'Circle micro-identity only, no E7/E8 solution. In general differentiate the entire first derivative equation, including any x,y,y′ factors. An implicit slope can feed X1 linearization.'),
+  ] },
+  { id: 'D6', slides: [page('D6-inverse', 'Reversed Inputs, Reciprocal Slopes', tex`b=f(a),\quad f'(a)\ne0\quad\Rightarrow\quad (f^{-1})'(b)=\frac1{f'(a)}`,
+    'Assume a continuous local inverse near b and differentiability at a. C¹ near a with f′(a) ≠ 0 is sufficient.', 'calc-inverse',
+    'The inverse domain is the original range. Reflect a marked point/tangent through y=x; do not repeat F0 horizontal-line-test lesson. Demo f=x² on (0,∞), a constrained away from 0, inverse sqrt(x). Slopes 2a and 1/(2a).')] },
+  { id: 'D7', slides: [
+    page('D7-branches', 'Choose a Branch Before Inverting', tex`\arcsin(\sin\theta)=\theta\quad\text{only for }-\frac\pi2\le\theta\le\frac\pi2`,
+      'Restrict sine to [−π/2, π/2], then reflect. The inverse range is that restricted interval.', 'calc-sine',
+      'TA Week 1 principal branches. Only sine gets a full reflection. Cosine restricts to [0,π]; tangent to (−π/2,π/2). General angles must first reduce to the principal sine branch. No inverse tangent slopes asserted at arcsin endpoints.'),
+    page('D7-reference', 'Principal Inverse-Trig Reference', tex`\begin{array}{c|c|c|c}&\text{domain}&\text{range}&\text{derivative}\\ \arcsin x&[-1,1]&[-\pi/2,\pi/2]&1/\sqrt{1-x^2}\\ \arccos x&[-1,1]&[0,\pi]&-1/\sqrt{1-x^2}\\ \arctan x&\mathbb R&(-\pi/2,\pi/2)&1/(1+x^2)\end{array}`,
+      'arcsin and arccos derivatives require |x| < 1. For a composition, multiply by the inner derivative.', undefined,
+      'The core exam-review sheet prioritizes these three. Optional reciprocal inverse trig conventions differ across supplied worksheets; do not silently mix them. See README source notes for the de-emphasized supplementary scope.'),
+  ] },
+  { id: 'D8', slides: [page('D8-rates', 'The Equation Links the Rates', tex`F_x\frac{dx}{dt}+F_y\frac{dy}{dt}=0,\qquad \frac{dy}{dt}=\frac{dy}{dx}\frac{dx}{dt}`,
+    'Name variables and units → relation → differentiate in t → substitute the instant → interpret sign and units.', 'calc-ladder',
+    'Fixed ladder length ℓ>0, x,y>0. x²+y²=ℓ² gives x ẋ+y ẏ=0. Demo ℓ=5 m, ẋ=1 m/s, ẏ=−x/y m/s. Keep x in [0.5,4.5] so y>0 and finite rates. Worksheet cone/robot tasks remain separate.'),
+  ] },
+];

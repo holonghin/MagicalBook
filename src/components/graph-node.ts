@@ -4,6 +4,9 @@ const NS = 'http://www.w3.org/2000/svg';
 let serial = 0;
 const fills = new WeakMap<HTMLElement, { path: SVGPathElement; heat: SVGPathElement; phase: number; last: number }>();
 const border = 'M12 10 Q55 6 92 8 L174 7 Q190 8 191 19 L193 55 Q190 68 175 68 L34 70 Q10 71 8 57 L7 26 Q6 15 12 10Z';
+// Seal outlines repeat across nodes and layouts. Cache in SVG units, then apply
+// current DOM dimensions so resizing/reflow keeps exact physical attachments.
+const anchorGeometry = new Map<string, { x: number; y: number }>();
 export function graphNode(label: string, detail: { shortLabel?: string; note?: string } = {}): HTMLButtonElement {
   const button = document.createElement('button'); button.className = 'route-node';
   const seal = document.createElementNS(NS, 'svg'); seal.classList.add('node-seal'); seal.setAttribute('viewBox', '0 0 200 78'); seal.setAttribute('preserveAspectRatio', 'none'); seal.setAttribute('aria-hidden', 'true');
@@ -34,6 +37,8 @@ export function graphNode(label: string, detail: { shortLabel?: string; note?: s
  * Button padding never participates in connector geometry. */
 export function sealAnchor(button: HTMLElement, side: 'left' | 'right' | 'top' | 'bottom') {
   const path = button.querySelector<SVGPathElement>('.node-outline')!;
+  const key = `${path.getAttribute('d')}:${side}`, cached = anchorGeometry.get(key);
+  if (cached) return { x: (cached.x / 200 - .5) * button.offsetWidth, y: (cached.y / 78 - .5) * button.offsetHeight };
   const length = path.getTotalLength(), horizontal = side === 'left' || side === 'right';
   const intersections: { x: number; y: number }[] = [];
   const value = (p: DOMPoint) => horizontal ? p.y - 39 : p.x - 100;
@@ -46,6 +51,7 @@ export function sealAnchor(button: HTMLElement, side: 'left' | 'right' | 'top' |
   }
   intersections.sort((a, b) => horizontal ? a.x - b.x : a.y - b.y);
   const p = (side === 'left' || side === 'top' ? intersections[0] : intersections.at(-1)) ?? { x: 100, y: 39 };
+  anchorGeometry.set(key, { x: p.x, y: p.y });
   return { x: (p.x / 200 - .5) * button.offsetWidth, y: (p.y / 78 - .5) * button.offsetHeight };
 }
 /** Scorch -> drawn seal -> paper/ink -> title. No finished pill is unhidden. */

@@ -1,5 +1,6 @@
 import type { RouteGraph, Slide } from './types';
 import { graphOrientation } from './graph-orientation';
+import type { GuidedRoute } from './guided-route';
 export type { GraphOrientation } from './graph-orientation';
 
 /** Slideshow progress is independent of the viewport's temporary final preview. */
@@ -11,6 +12,12 @@ export class GraphState {
   miniMapPreview = false;
   private finalProgress = false;
   activeNode?: string;
+  guided?: GuidedRoute;
+  // Empty category nodes never open, even in the free-browsing full map.
+  canVisit(id: string) {
+    return !!this.data.nodes.find(node => node.id === id)?.slideIds.length
+      && (this.miniMapPreview || !this.guided || this.guided.canVisit(id));
+  }
   readonly history: { step: number; cue?: string; orientation: string }[] = [];
   constructor(readonly data: RouteGraph, presentationId: string, readonly visited: Set<string>, steps: Slide[] = []) {
     this.id = `${presentationId}:${data.id ?? 'route'}`;

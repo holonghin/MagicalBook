@@ -2,11 +2,14 @@ import type { RouteGraph } from '../engine/types';
 
 /** Collapse strongly connected components before ranking cyclic graphs. */
 export function graphRanks(graph: RouteGraph): Map<string, number> {
+  // Semantic cross-links may connect distant/cyclic ideas without changing the
+  // hierarchy used to rank the authored teaching tree. They still render/reveal.
+  const edges = graph.edges.filter(edge => edge.layoutConstraint !== false);
   let serial = 0;
   const index = new Map<string, number>(), low = new Map<string, number>(), stack: string[] = [], on = new Set<string>(), groups: string[][] = [];
   function visit(id: string) {
     index.set(id, serial); low.set(id, serial++); stack.push(id); on.add(id);
-    for (const edge of graph.edges.filter(e => e.from === id)) {
+    for (const edge of edges.filter(e => e.from === id)) {
       if (!index.has(edge.to)) { visit(edge.to); low.set(id, Math.min(low.get(id)!, low.get(edge.to)!)); }
       else if (on.has(edge.to)) low.set(id, Math.min(low.get(id)!, index.get(edge.to)!));
     }
@@ -21,7 +24,7 @@ export function graphRanks(graph: RouteGraph): Map<string, number> {
   const depth = new Map<number, number>();
   function rank(i: number): number {
     if (depth.has(i)) return depth.get(i)!;
-    const parents = graph.edges.filter(e => component.get(e.to) === i && component.get(e.from) !== i).map(e => component.get(e.from)!);
+    const parents = edges.filter(e => component.get(e.to) === i && component.get(e.from) !== i).map(e => component.get(e.from)!);
     const value = parents.length ? 1 + Math.max(...parents.map(rank)) : 0;
     depth.set(i, value); return value;
   }

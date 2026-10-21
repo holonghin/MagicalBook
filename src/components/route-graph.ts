@@ -57,6 +57,10 @@ export class GraphView {
   playbackDuration(tempo: number) { return this.whole ? fullGraphRevealDuration(this.duration, tempo) : this.duration / tempo; }
   get fullOverview() { return this.whole; }
   private activationBases = new Map<number, number>();
+  private teachingPath?: EdgeView;
+  private teachingContext?: CameraPose;
+  private teachingPoses = new Map<number, CameraPose>();
+  private viewportSize = { width: 0, height: 0 };
   private followingGrowth = false;
   private reflowDestination = false;
   private reflow?: { from: Map<string, { x: number; y: number }>; to: Map<string, { x: number; y: number }>; paintPaths: ReturnType<typeof reflowPaths>; cameraFrom: CameraPose; cameraTo: CameraPose };
@@ -80,6 +84,7 @@ export class GraphView {
     this.world.append(this.svg);
     for (const node of graph.nodes) {
       const button = graphNode(node.label, node); button.dataset.node = node.id;
+      button.dataset.hasContent = String(node.slideIds.length > 0);
       button.style.visibility = 'hidden';
       button.addEventListener('click', () => visit(node.id)); this.nodes.set(node.id, button); this.world.append(button);
     }
@@ -102,12 +107,26 @@ export class GraphView {
     if (!this.element.isConnected || !this.element.clientWidth) return;
     // Reserve full-label seal geometry once. Semantic text tiers must never
     // shrink the body or move its attachment points when their wording changes.
-    this.nodes.forEach(node => { if (!node.style.width) { node.style.width = `${node.offsetWidth}px`; node.style.height = `${node.offsetHeight}px`; } });
+    this.nodes.forEach(node => {
+      if (node.style.width) return;
+      const title = node.querySelector<HTMLElement>('.node-title')!, displayed = title.textContent;
+      // A guided map can first mount while its label tier is abbreviated.
+      // Freeze the full manuscript box, otherwise a later local camera reveals
+      // a three-line title spilling below a one-line seal.
+      if (this.state.guided) title.textContent = node.dataset.fullLabel!;
+      node.style.width = `${node.offsetWidth}px`;
+      const style = getComputedStyle(node), ink = node.querySelector<HTMLElement>('.node-ink')!;
+      node.style.height = `${this.state.guided ? Math.max(node.offsetHeight, ink.scrollHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + 12) : node.offsetHeight}px`;
+      title.textContent = displayed;
+    });
     const areaWidth = this.element.clientWidth, areaHeight = Math.max(200, this.element.clientHeight - 30);
     const result = layoutGraph(this.graph, this.axis, areaWidth, areaHeight, {
       width: Math.max(165, ...[...this.nodes.values()].map(n => n.offsetWidth)),
       height: Math.max(72, ...[...this.nodes.values()].map(n => n.offsetHeight)),
     });
+    if (this.viewportSize.width && (areaWidth !== this.viewportSize.width || areaHeight !== this.viewportSize.height || result.width !== this.dimensions.width || result.height !== this.dimensions.height))
+      this.teachingPoses.clear(); // Old pixel poses cannot describe a resized world.
+    this.viewportSize = { width: areaWidth, height: areaHeight };
     this.points = result.points;
     this.dimensions = result; this.world.style.width = `${result.width}px`; this.world.style.height = `${result.height}px`;
     this.svg.setAttribute('viewBox', `0 0 ${result.width} ${result.height}`);
@@ -213,14 +232,28 @@ export class GraphView {
     this.active = true;
     this.camera.lock(true);
     this.focusFrom = { ...this.camera.pose };
+    if (this.state.guided && !whole && this.previous !== step) this.teachingPoses.set(this.previous, this.focusFrom);
     const newEdges = this.graph.edges.filter(e => e.unlockStep > this.base && e.unlockStep <= this.extent);
     this.reverseTraceWindow = Math.max(0, ...newEdges.map(e => this.edges.get(e.id)!.duration));
-    const focusIds = new Set(newEdges.flatMap(e => [e.from, e.to]));
+    // Cross-links enrich the map, but distant semantic endpoints must not
+    // force the next teaching seal into a global fit.
+    const focusEdges = this.state.guided && !whole ? newEdges.filter(e => e.layoutConstraint !== false) : newEdges;
+    const focusIds = new Set(focusEdges.flatMap(e => [e.from, e.to]));
     if (!focusIds.size) this.graph.nodes.filter(n => n.unlockStep <= this.extent).forEach(n => focusIds.add(n.id));
-    const sources = new Set(newEdges.filter(e => this.graph.nodes.find(n => n.id === e.from)!.unlockStep <= this.base).map(e => e.from));
+    const sources = new Set(focusEdges.filter(e => this.graph.nodes.find(n => n.id === e.from)!.unlockStep <= this.base).map(e => e.from));
     if (!sources.size) focusIds.forEach(id => sources.add(id));
     this.focusSource = this.camera.frameBounds(this.selectionBounds(sources));
     this.focusTo = whole ? this.camera.frameBounds(this.graphBounds(true)) : this.camera.frameBounds(this.selectionBounds(focusIds, newEdges.map(e => e.id)), 1.6);
+    this.teachingPath = undefined; this.teachingContext = undefined;
+    if (this.state.guided && !whole) {
+      if (focusEdges.length === 1) {
+        const edge = focusEdges[0]; this.teachingPath = this.edges.get(edge.id);
+        this.teachingContext = this.camera.frameBounds(this.selectionBounds(focusIds, [edge.id]), 1.25);
+        this.focusTo = this.camera.frameBounds(this.selectionBounds(new Set([edge.to])), 1.25);
+      } else if (focusEdges.length) this.focusTo = this.camera.frameBounds(this.selectionBounds(focusIds, focusEdges.map(e => e.id)), 1.4);
+      else if (step === this.previous && step >= 0) this.focusSource = this.focusTo = this.focusFrom;
+      if (this.reverse) this.focusSource = this.teachingPoses.get(step) ?? this.focusSource;
+    }
     const arrivals = this.graph.nodes.filter(n => n.unlockStep > this.base && n.unlockStep <= this.extent).map(n => this.arrivals.get(n.id) ?? 0).filter(t => t > 0);
     this.travelTime = Math.min(720, ...arrivals);
     this.detail.focus(whole ? new Set(this.graph.nodes.filter(n => n.role === 'branch' || !this.graph.edges.some(e => e.to === n.id) || this.graph.edges.filter(e => e.from === n.id).length > 1).map(n => n.id)) : focusIds);
@@ -291,7 +324,18 @@ export class GraphView {
         else this.camera.interpolate(this.focusTo, this.focusSource, retreat);
       }
       else if (clock < this.focusDelay) this.camera.interpolate(this.focusFrom, this.focusSource, clock / this.focusDelay);
-      else this.camera.interpolate(this.focusSource, this.focusTo, time / this.travelTime);
+      else if (this.teachingPath && this.teachingContext) {
+        const p = clamp(time / this.teachingPath.duration);
+        if (p < .28) this.camera.interpolate(this.focusSource, this.teachingContext, p / .28);
+        else {
+          const t = ease(clamp((p - .28) / .72)), point = this.teachingPath.path.getPointAtLength(this.teachingPath.length * p);
+          const sourceScale = this.teachingContext.scale, scale = sourceScale + (this.focusTo.scale - sourceScale) * t;
+          const tracked = this.camera.frame([point], scale);
+          // Blend from a clear source/path context to the arriving seal, then
+          // hold its readable composition through the whole inscription.
+          this.camera.interpolate(this.teachingContext, p >= 1 ? this.focusTo : tracked, t);
+        }
+      } else this.camera.interpolate(this.focusSource, this.focusTo, time / this.travelTime);
     }
     this.element.dataset.direction = this.reverse ? 'back' : 'forward';
     this.element.dataset.growthPhase = finished ? 'settled' : handoff > 0 ? 'handoff' : this.reverse ? 'retraction' : clock < this.focusDelay ? 'focus' : 'propagation';
@@ -334,7 +378,11 @@ export class GraphView {
       // visibly finished seal inert. Final visibility belongs to the target set.
       const p = !eligible ? 0 : finished ? node.unlockStep <= this.target ? 1 : 0 : settled ? 1 : Math.max(handoff, clamp((time - arrival) / this.nodeTime));
       button.style.visibility = eligible && (settled || p > 0) ? 'visible' : 'hidden';
-      button.inert = this.active || !eligible || p < 1;
+      const unlocked = this.state.canVisit(node.id);
+      button.inert = this.active || !eligible || p < 1 || !!node.slideIds.length && !unlocked;
+      button.disabled = !unlocked;
+      button.dataset.unlocked = String(unlocked);
+      button.setAttribute('aria-disabled', String(!unlocked));
       button.setAttribute('aria-hidden', String(button.style.visibility === 'hidden'));
       button.dataset.inkProgress = p.toFixed(3);
       drawGraphNode(button, p);

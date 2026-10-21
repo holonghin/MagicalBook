@@ -12,18 +12,22 @@ import { getGraphView, type GraphView } from '../components/route-graph';
 import { mapIntent } from './graph-navigation';
 import type { CameraPose } from '../components/graph-camera';
 import { GraphState } from './graph-state';
+import { GuidedRoute } from './guided-route';
+import { getDemoSequence, sceneSequences, type DemoSequence } from '../components/demo-sequence';
 import { sampleDropProfile, type DropProfile } from '../effects/drop-profile';
 
 const defaults: Timings = { opening: 1900, turn: 520, erase: 430, reveal: 1000, drop: 1300, closing: 1900 };
 const keys: Record<Action, string[]> = {
   next: ['ArrowRight', ' ', 'PageDown'], back: ['ArrowLeft', 'PageUp'], skip: ['s'], replay: ['r'],
   home: ['Home'], fullscreen: ['f'], effects: ['m'], pause: ['p'], escape: ['Escape'], minimap: ['g'],
+  cue: ['c'],
 };
 
 export class Presentation {
   readonly state: PresenterState = { phase: 'closed', index: 0, beat: 0, effects: !matchMedia('(prefers-reduced-motion: reduce)').matches, visited: new Set(), routeReturn: null };
   readonly timeline = new Timeline();
   readonly graphState?: GraphState;
+  readonly guided?: GuidedRoute;
   /** Rehearsal-only visual QA override; never required in content data. */
   readonly rehearsal: { burnOrigins?: 1 | 2 | 3; dropSeed?: number } = {};
   readonly slides: Slide[];
@@ -31,6 +35,7 @@ export class Presentation {
   private cache = new Map<string, RenderedScene>();
   private current?: RenderedScene;
   private reveals: MagicalReveal[] = [];
+  private pendingDemoInk: HTMLElement[] = [];
   private exits: MagicalReveal[] = [];
   private paperBurns: PaperBurnThrough[] = [];
   private graphViews = new Map<string, HTMLElement>();
@@ -63,6 +68,7 @@ export class Presentation {
   private timings: Timings;
   private tempo = 1;
   private activeNode?: string;
+  private cueVisible = true;
   private tracedPaths: SVGPathElement[] = [];
   // One normalized physical book pose drives both opening and closing.
   private openingTime = 0;
@@ -84,9 +90,11 @@ export class Presentation {
     if (ids.size !== this.slides.length) throw new Error('Slide IDs must be unique.');
     for (const slide of this.slides) if (slide.restoreSceneId && !ids.has(slide.restoreSceneId)) throw new Error(`Unknown saved scene: ${slide.restoreSceneId}`);
     this.timings = { ...defaults, ...deck.config.timings };
+    if (deck.guidedRoute) this.guided = new GuidedRoute(deck.guidedRoute.steps);
     if (deck.routeGraph) {
       const order = deck.flow ? deck.flow.map(id => this.slides.find(s => s.id === id)!) : this.slides;
       this.graphState = new GraphState(deck.routeGraph, deck.config.id, this.state.visited, order.filter(s => s.routeStep !== undefined && s.kind !== 'finalGraph'));
+      this.graphState.guided = this.guided;
     }
     this.ui = createBook(root, deck.config);
     root.dataset.content = deck.config.id;
@@ -98,6 +106,19 @@ export class Presentation {
     this.bind(); this.update();
   }
   private bind() {
+    this.ui.root.addEventListener('demo-explore', () => this.update());
+    this.ui.get('.restart-demo').addEventListener('click', () => {
+      if (this.timeline.active) this.timeline.finish();
+      const sequence = this.current && sceneSequences(this.current.element)[0];
+      if (sequence) this.stepDemo(sequence, 0);
+    });
+    this.ui.root.addEventListener('demo-step', event => {
+      const sequence = getDemoSequence(event.target as Element);
+      if (!sequence || !this.current?.element.contains(event.target as Node)) return;
+      event.preventDefault();
+      if (this.timeline.active) { this.timeline.finish(); return; }
+      this.stepDemo(sequence, (event as CustomEvent<{ step: number }>).detail.step);
+    });
     this.ui.cover.addEventListener('click', () => this.open());
     this.ui.root.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(button => button.addEventListener('click', () => {
       if (button.dataset.action === 'help') this.ui.help.showModal();
@@ -115,6 +136,7 @@ export class Presentation {
       if (target.closest('button,a,summary') && (event.key === ' ' || event.key === 'Enter')) return;
       if (event.key === '?' ) { event.preventDefault(); this.ui.help.showModal(); return; }
       if (event.key === 'Enter' && this.state.phase === 'closed') { event.preventDefault(); this.open(); return; }
+      if (event.key === 'Enter' && this.guided && this.current?.slide.routeStep !== undefined) { event.preventDefault(); if (!event.repeat) this.next(); return; }
       const binding = Object.entries({ ...keys, ...this.deck.config.keys }).find(([, values]) => values.includes(event.key.length === 1 ? event.key.toLowerCase() : event.key));
       if (binding) { event.preventDefault(); if (!event.repeat) this.act(binding[0] as Action); }
     });
@@ -132,6 +154,7 @@ export class Presentation {
     else if (action === 'replay') this.replay();
     else if (action === 'home') this.home();
     else if (action === 'minimap') this.miniMap();
+    else if (action === 'cue') { this.cueVisible = !this.cueVisible; this.update(); }
     else if (action === 'effects') { this.state.effects = !this.state.effects; this.timeline.finish(); this.update(); }
     else if (action === 'pause') { this.timeline.togglePause(); this.update(); }
     else if (action === 'escape' && this.state.routeReturn) this.returnToRoute();
@@ -143,6 +166,7 @@ export class Presentation {
   private clean(preserveGraph = false) {
     this.timeline.cancel();
     this.cancelPaper();
+    this.pendingDemoInk.forEach(target => target.style.visibility = ''); this.pendingDemoInk = [];
     this.reveals.forEach(reveal => reveal.dispose()); this.reveals = [];
     this.exits.forEach(reveal => reveal.dispose()); this.exits = [];
     this.paperBurns.forEach(burn => burn.dispose()); this.paperBurns = [];
@@ -180,14 +204,28 @@ export class Presentation {
       slot.style.visibility = visible ? '' : 'hidden'; slot.inert = !visible;
     }
   }
-  private prepareReveal(scene: RenderedScene, beat: number, all = false, regions?: 1 | 2 | 3) {
+  private prepareReveal(scene: RenderedScene, beat: number, all = false, regions?: 1 | 2 | 3, preserveDemo = false) {
     this.setBeats(scene, beat);
     for (const slot of scene.slots) {
       if ((all ? Number(slot.dataset.beat) <= beat : Number(slot.dataset.beat) === beat) && slot.dataset.reveal !== 'false') {
         const target = slot.querySelector<HTMLElement>('.ink-content')!;
+        if (preserveDemo && (target.matches('[data-demo-continuity]') || target.querySelector('[data-demo-continuity]'))) {
+          const sequences = [getDemoSequence(target), ...sceneSequences(target)];
+          for (const sequence of sequences) for (const [i, mark] of (sequence?.continuity?.revealTargets?.() ?? []).entries()) {
+            if (mark.offsetWidth && mark.offsetHeight && mark.textContent?.trim())
+              this.reveals.push(new MagicalReveal(mark, hash(`${scene.slide.id}:annotation:${i}`, this.entranceSeed), 'in', regions));
+          }
+          continue;
+        }
         const graph = getGraphView(target);
         if (graph) {
           const axis = this.sceneAxis(scene.slide);
+          if (this.guided && this.restoringGraph && !this.graphState!.miniMapPreview) {
+            // The real retained map is already inscribed. A node return owns
+            // only the departing sheet and camera restoration, not its ink.
+            graph.finish();
+            continue;
+          }
           const selected = this.restoringGraph ? this.graphState!.activeNode : undefined;
           if (!this.restoringGraph && !this.slides[this.state.index].restoreSceneId) this.graphState!.show(scene.slide);
           graph.transition(this.graphStep(scene.slide), axis, this.entranceSeed, this.graphReplay, scene.slide.kind === 'finalGraph', this.expandingGraph, this.graphEntrance);
@@ -216,14 +254,16 @@ export class Presentation {
   private graphStep(slide: Slide) {
     return slide.routeStep ?? 0;
   }
-  private prepareExit(page: HTMLElement) {
+  private prepareExit(page: HTMLElement, preserveDemo = false) {
     for (const target of page.querySelectorAll<HTMLElement>('.ink-content:not(.ink-front)')) {
       if (target.parentElement?.style.visibility === 'hidden') continue;
+      if (preserveDemo && (target.matches('[data-demo-continuity]') || target.querySelector('[data-demo-continuity]'))) { target.style.visibility = 'hidden'; continue; }
       this.exits.push(new MagicalReveal(target, hash(`erase:${page.dataset.scene}:${target.parentElement?.dataset.block ?? 'heading'}:${this.visit}`, this.deck.config.seed), 'out'));
     }
   }
   private drawExit(progress: number) { this.exits.forEach(effect => effect.draw(progress)); }
   private complete = () => {
+    this.pendingDemoInk.forEach(target => target.style.visibility = ''); this.pendingDemoInk = [];
     this.reveals.forEach(reveal => reveal.dispose()); this.reveals = [];
     this.exits.forEach(reveal => reveal.dispose()); this.exits = [];
     this.paperBurns.forEach(burn => burn.dispose()); this.paperBurns = [];
@@ -248,6 +288,10 @@ export class Presentation {
     this.ui.cover.style.visibility = 'hidden'; this.ui.cover.inert = true;
     this.cameraReturn = undefined;
     this.state.phase = 'ready'; this.update();
+    if (this.guided && !this.graphState?.miniMapPreview && this.current?.slide.id === this.guided.current.sceneId) {
+      const id = this.guided.current.nodeId;
+      if (id) getGraphView(this.current.element)?.selectNode(id);
+    }
     this.announce(`${this.current?.slide.eyebrow}. ${this.current?.slide.blocks.find(block => block.type === 'title')?.text ?? this.current?.slide.blocks.find(block => block.type === 'title')?.lines?.join(' ') ?? ''}`);
   };
   /** Complete visual journey: same normalized positions in either direction.
@@ -286,7 +330,10 @@ export class Presentation {
     // A cover preview leaves the slideshow untouched. A normal start is an
     // intentional restart, with dormant renderer visibility set before mounting.
     if (this.graphState) {
-      if (destination === undefined) this.graphState.restart();
+      if (destination === undefined) {
+        this.graphState.restart(); this.guided?.restart();
+        this.cache.forEach(scene => sceneSequences(scene.element).forEach(sequence => { sequence.continuity?.reset?.(); sequence.setStep(0); }));
+      }
       else this.graphState.miniMapPreview = true;
       this.graphViews.forEach(el => getGraphView(el)?.stage(-1, destination === undefined ? this.graphState!.policy.initial : this.graphState!.policy.final));
     }
@@ -355,6 +402,8 @@ export class Presentation {
   next() {
     if (this.timeline.active) { this.timeline.finish(); return; }
     if (this.state.phase === 'closed') { this.open(); return; }
+    const sequence = this.current && sceneSequences(this.current.element).find(s => s.step < s.maxStep);
+    if (sequence) { this.stepDemo(sequence, sequence.step + 1); return; }
     if (this.current && this.state.beat < this.current.maxBeat) {
       this.clean(); this.state.beat++;
       if (!this.state.effects) { this.setBeats(this.current, this.state.beat); this.update(); return; }
@@ -364,8 +413,24 @@ export class Presentation {
     if (this.state.routeReturn && this.activeNode) {
       const node = this.deck.routeGraph!.nodes.find(node => node.id === this.activeNode)!;
       const position = node.slideIds.indexOf(this.slides[this.state.index].id);
-      if (position >= node.slideIds.length - 1) { this.returnToRoute(); return; }
+      if (position >= node.slideIds.length - 1) {
+        if (this.guided && !this.graphState?.miniMapPreview && this.guided.current.nodeId === node.id && this.slides[this.state.routeReturn.index].id === this.guided.current.sceneId) {
+          const group=this.guided.current.continuationGroup;
+          this.guided.completed.add(node.id); this.state.routeReturn = null; this.activeNode = undefined;
+          if (this.guided.advance()) {
+            if (group && group===this.guided.current.continuationGroup) this.enterJoinedLesson(1);
+            else this.enterGuided(1);
+            return;
+          }
+        }
+        this.returnToRoute(); return;
+      }
       this.enter(this.slides.findIndex(slide => slide.id === node.slideIds[position + 1]), 1); return;
+    }
+    if (this.guided && !this.graphState?.miniMapPreview && this.current?.slide.id === this.guided.current.sceneId && this.guided.current.nodeId) {
+      if (this.guided.current.advanceOnly) { if (this.guided.advance()) this.enterGuided(1); }
+      else this.visitNode(this.guided.current.nodeId);
+      return;
     }
     if (this.current?.slide.kind === 'finalGraph') { this.home(); return; }
     if (this.deck.flow) {
@@ -388,7 +453,10 @@ export class Presentation {
       else this.reversePaper();
       return;
     }
+    if (this.guided && this.timeline.active) { this.timeline.finish(); return; }
     this.clean();
+    const sequence = this.current && sceneSequences(this.current.element).reverse().find(s => s.step > 0);
+    if (sequence) { this.stepDemo(sequence, sequence.step - 1); return; }
     if (this.state.beat > 0 && this.current) {
       const removed = this.state.beat--;
       if (!this.state.effects) { this.setBeats(this.current, this.state.beat); this.complete(); return; }
@@ -403,7 +471,9 @@ export class Presentation {
       const node = this.deck.routeGraph?.nodes.find(n => n.id === this.activeNode);
       const position = node?.slideIds.indexOf(this.slides[this.state.index].id) ?? 0;
       if (node && position > 0) this.enter(this.slides.findIndex(s => s.id === node.slideIds[position - 1]), -1);
-      else this.returnToRoute();
+      else if (this.guided && !this.graphState?.miniMapPreview && this.activeNode===this.guided.current.nodeId && this.guided.current.continuationGroup && this.guided.steps[this.guided.cursor-1]?.continuationGroup===this.guided.current.continuationGroup) {
+        this.guided.rewind(); this.enterJoinedLesson(-1);
+      } else this.returnToRoute();
       return;
     }
     if (this.current?.slide.kind === 'finalGraph' && this.mapReturn) {
@@ -411,6 +481,30 @@ export class Presentation {
       if (this.graphState) { this.graphState.miniMapPreview = false; this.graphState.activeNode = target.selected; }
       if (target.mode === 'cover') this.home();
       else { this.enter(target.index, -1, false, target.mode === 'page' ? 'page' : undefined, { camera: target.camera, selected: target.selected }); this.state.beat = target.beat; this.setBeats(this.current!, target.beat); }
+      return;
+    }
+    if (this.guided && !this.graphState?.miniMapPreview && this.current?.slide.id === this.guided.current.sceneId) {
+      if (!this.guided.rewind()) { this.home(); return; }
+      const step = this.guided.current;
+      if (step.nodeId && !step.advanceOnly) {
+        const index = this.slides.findIndex(s => s.id === step.sceneId);
+        const restoreLesson = () => {
+          this.graphState!.show(this.slides[index]);
+          this.state.routeReturn = { index, beat: 0 }; this.activeNode = step.nodeId;
+          const node = this.deck.routeGraph!.nodes.find(n => n.id === step.nodeId)!;
+          this.enter(this.slides.findIndex(s => s.id === node.slideIds.at(-1)), -1, false, 'paperBurn');
+        };
+        const graph = getGraphView(this.current!.element);
+        if (this.state.effects && graph) {
+          this.graphState!.show(this.slides[index]);
+          graph.transition(this.graphStep(this.slides[index]), this.sceneAxis(this.slides[index]), this.deck.config.seed);
+          this.graphAnimations = [graph]; this.state.phase = 'graphing'; this.update();
+          const duration = this.revealDuration();
+          this.timeline.play(duration, time => graph.draw(time / duration), () => { graph.finish(); this.graphAnimations = []; restoreLesson(); });
+        } else {
+          graph?.stage(this.graphStep(this.slides[index]), this.sceneAxis(this.slides[index])); graph?.finish(); restoreLesson();
+        }
+      } else this.enterGuided(-1);
       return;
     }
     if (this.deck.flow) {
@@ -422,7 +516,54 @@ export class Presentation {
     if (this.state.index === 0) this.home();
     else this.enter(this.state.index - 1, -1);
   }
-  private enter(index: number, direction: number, replay = false, transition?: SceneTransition, arrival: { restoreGraph?: boolean; expandGraph?: boolean; nodeId?: string; camera?: CameraPose; selected?: string } = {}) {
+  /** Deck-authored adjacent concepts can defer their graph visit as one story.
+   * GraphView remains untouched until the group ends, so it reveals the union
+   * of new nodes/paths concurrently from its retained, already-inscribed base. */
+  private enterJoinedLesson(direction: number) {
+    const step=this.guided!.current;
+    const node=this.deck.routeGraph!.nodes.find(n=>n.id===step.nodeId)!;
+    this.state.routeReturn={index:this.slides.findIndex(s=>s.id===step.sceneId),beat:0};
+    this.activeNode=node.id;this.state.visited.add(node.id);
+    this.enter(this.slides.findIndex(s=>s.id===(direction>0?node.slideIds[0]:node.slideIds.at(-1))),direction,false,'burn',{continuation:true});
+  }
+  private enterGuided(direction: number) {
+    this.enter(this.slides.findIndex(s => s.id === this.guided!.current.sceneId), direction,
+      false, this.current?.slide.routeStep === undefined ? 'paperBurn' : undefined);
+  }
+  private stepDemo(sequence: DemoSequence, step: number) {
+    this.clean(); const from = sequence.step; sequence.setStep(step);
+    if (!this.state.effects) { sequence.transition?.(from, sequence.step, 1); this.complete(); return; }
+    const duration = (sequence.duration ?? 460) / this.tempo;
+    const motion = sequence.revealAfterMotion && sequence.transition && from !== sequence.step ? duration : 0;
+    const inscription = sequence.revealAfterMotion ? 460 / this.tempo : duration;
+    const targets = sequence.targets.filter(target => target.offsetWidth && target.offsetHeight && target.textContent?.trim());
+    const inscribe = () => targets.forEach((target, i) => this.reveals.push(new MagicalReveal(target, hash(`demo:${this.current!.slide.id}:${step}:${i}`, this.deck.config.seed), 'in')));
+    let prepared = false;
+    if (sequence.revealAfterMotion) this.pendingDemoInk = targets;
+    this.ui.host.inert = true;
+    this.state.phase = 'revealing'; this.update();
+    this.timeline.play(motion + inscription, time => {
+      if (sequence.revealAfterMotion) {
+        // Newly introduced words stay blank while geometry moves. Build their
+        // ordinary burn masks only at the final, typeset pose; old ink stays.
+        if (time < motion) {
+          if (prepared) { this.reveals.forEach(reveal => reveal.dispose()); this.reveals = []; prepared = false; }
+          sequence.transition?.(from, sequence.step, clamp(time / motion));
+          targets.forEach(target => target.style.visibility = 'hidden');
+        } else {
+          if (!prepared) {
+            sequence.transition?.(from, sequence.step, 1);
+            targets.forEach(target => target.style.visibility = ''); inscribe(); prepared = true;
+          }
+          this.drawReveal(clamp((time - motion) / inscription));
+        }
+      } else {
+        if (!prepared) { sequence.transition?.(from, sequence.step, 0); inscribe(); prepared = true; }
+        const p = clamp(time / duration); sequence.transition?.(from, sequence.step, p); this.drawReveal(p);
+      }
+    }, this.complete);
+  }
+  private enter(index: number, direction: number, replay = false, transition?: SceneTransition, arrival: { restoreGraph?: boolean; expandGraph?: boolean; nodeId?: string; camera?: CameraPose; selected?: string; continuation?: boolean } = {}) {
     this.clean();
     this.cameraReturn = arrival.camera;
     this.selectionReturn = arrival.selected;
@@ -444,21 +585,28 @@ export class Presentation {
     if (selectedTransition === 'drop' && this.state.effects && this.current) {
       this.drop(slide, index, direction < 0, replay); return;
     }
+    const handoff=arrival.continuation && this.current ? sceneSequences(this.current.element).flatMap(seq=>seq.continuity ? [{key:seq.continuity.key,state:seq.continuity.capture()}] : []) : [];
     let old = this.current?.element.cloneNode(true) as HTMLElement | undefined;
     this.state.index = index;
     const destination = slide.restoreSceneId ? this.slides.find(item => item.id === slide.restoreSceneId)! : slide;
     this.entranceSeed = replay ? this.entranceSeeds.get(slide.id) ?? hash(slide.id, this.deck.config.seed) : hash(`${slide.id}:visit:${++this.visit}`, this.deck.config.seed);
     this.entranceSeeds.set(slide.id, this.entranceSeed);
-    this.graphEntrance = destination.routeStep !== undefined && previous?.routeStep === undefined && !this.expandingGraph;
+    const retainedTeachingMap = !!this.guided && !this.graphState!.miniMapPreview && destination.kind !== 'finalGraph';
+    this.graphEntrance = destination.routeStep !== undefined && previous?.routeStep === undefined && !this.expandingGraph && !retainedTeachingMap;
     const returnView = arrival.nodeId ? this.graphViews.get(this.graphState!.id) : undefined;
     const returnPose = returnView ? getGraphView(returnView)!.returnPose(arrival.nodeId!) : undefined;
-    if (destination.routeStep !== undefined && previous?.routeStep === undefined) {
+    if (destination.routeStep !== undefined && previous?.routeStep === undefined && !retainedTeachingMap) {
       const view = this.graphViews.get(this.graphState!.id);
       if (view) getGraphView(view)?.stage(this.expandingGraph ? this.graphState!.progressStep : -1, this.sceneAxis(destination));
     }
     this.current = this.getScene(slide);
+    for (const seq of sceneSequences(this.current.element)) {
+      const match=handoff.find(item=>item.key===seq.continuity?.key);
+      if(match) { seq.setStep(direction>0?0:seq.maxStep);seq.continuity!.restore(match.state); }
+    }
     this.state.beat = direction < 0 || slide.restoreSceneId ? this.current.maxBeat : 0;
     this.ui.host.replaceChildren(this.current.element);
+    if (this.guided) this.ui.host.inert = true;
     cameraPose(this.ui.book, 1, this.deck.config.camera);
     focusView(this.current.element, slide.focus ?? this.current.slide.focus);
     this.setBeats(this.current, this.state.beat);
@@ -466,7 +614,7 @@ export class Presentation {
       const view = getGraphView(this.current.element);
       if (view) {
         view.layout();
-        this.graphRestoration = { view, ...(returnPose ?? view.returnPose(arrival.nodeId)) };
+        this.graphRestoration = { view, ...(this.guided ? view.returnPose(arrival.nodeId) : returnPose ?? view.returnPose(arrival.nodeId)) };
         view.camera.lock(true);
       }
       this.navigationIntent = arrival.expandGraph ? 'node-map' : 'node-return';
@@ -491,14 +639,14 @@ export class Presentation {
       else if (old) this.handoffSources.set(slide.id, old.cloneNode(true) as HTMLElement);
       this.handoff(slide, old, direction < 0); return;
     }
-    const outgoingDuration = replay ? 0 : this.timings.erase / this.tempo;
-    this.prepareReveal(this.current, this.state.beat, true);
-    const revealDuration = this.revealDuration();
+    const outgoingDuration = replay ? 0 : (arrival.continuation ? 260 : this.timings.erase) / this.tempo;
+    this.prepareReveal(this.current, this.state.beat, true, undefined, arrival.continuation);
+    const revealDuration = arrival.continuation ? 500 / this.tempo : this.revealDuration();
     const incomingStart = outgoingDuration * .46;
     if (old && outgoingDuration) {
       old.classList.add('outgoing-scene');
       old.inert = true; old.setAttribute('aria-hidden', 'true'); this.ui.host.append(old); this.temporary.push(old);
-      this.prepareExit(old);
+      this.prepareExit(old, arrival.continuation);
     }
     this.state.phase = outgoingDuration ? 'erasing' : 'revealing'; this.update();
     this.timeline.play(incomingStart + revealDuration, time => {
@@ -551,7 +699,7 @@ export class Presentation {
     this.prepareReveal(this.current!, this.state.beat, true);
     if (this.graphEntrance) this.graphAnimations.forEach(view => view.primeEntrance());
     if (this.graphRestoration) { this.current!.element.inert = true; this.graphRestoration.view.camera.lock(true); }
-    const mapReveal = this.graphAnimations.some(view => view.fullOverview) ? this.revealDuration() : 0;
+    const mapReveal = this.graphAnimations.some(view => view.fullOverview) || this.guided && this.graphAnimations.length ? this.revealDuration() : 0;
     this.timeline.play(duration + mapReveal, time => {
       const p = clamp(time / duration); burn.draw(p);
       this.drawReveal(mapReveal ? clamp((time - duration) / mapReveal) : clamp((p - .14) / .72));
@@ -717,7 +865,7 @@ export class Presentation {
       if (!this.restoringGraph) {
         this.graphState!.show(this.current.slide);
         graph.transition(this.graphStep(this.current.slide), this.sceneAxis(this.current.slide), this.entranceSeed, false, this.current.slide.kind === 'finalGraph', this.expandingGraph);
-      }
+      } else graph.stage(this.graphStep(this.current.slide), this.sceneAxis(this.current.slide));
       graph.finish();
       if (this.cameraReturn) graph.camera.set(this.cameraReturn);
     }
@@ -817,7 +965,21 @@ export class Presentation {
     if (['closed', 'opening', 'closing'].includes(this.state.phase)) return;
     if (this.timeline.active) this.timeline.finish();
     const node = this.deck.routeGraph?.nodes.find(node => node.id === id);
-    if (!node || node.unlockStep > (getGraphView(this.current!.element)?.visibleStep ?? -1)) return;
+    if (!node || !this.graphState?.canVisit(id) || node.unlockStep > (getGraphView(this.current!.element)?.visibleStep ?? -1)) return;
+    if (this.guided?.current.advanceOnly && this.guided.current.nodeId === id && !this.graphState.miniMapPreview) {
+      if (this.guided.advance()) this.enterGuided(1); return;
+    }
+    // Content may offer a branch as an alternative to Next, while preserving
+    // the authored route and its current reveal boundary. Existing decks opt out.
+    if (node.role === 'branch' && this.deck.flow && !this.state.routeReturn) {
+      const position = this.deck.flow.indexOf(this.slides[this.state.index].id);
+      const cue = position >= 0 ? this.slides.find(s => s.id === this.deck.flow![position + 1]) : undefined;
+      if (cue?.routeAdvance?.fromNode === id) {
+        const previous = cue.routeAdvance.afterNode;
+        if (previous && !this.state.visited.has(previous)) { this.visitNode(previous); return; }
+        this.enter(this.slides.indexOf(cue), 1); return;
+      }
+    }
     const index = this.slides.findIndex(slide => slide.id === node.slideIds[0]);
     if (index < 0) return;
     this.state.routeReturn = { index: this.state.index, beat: this.state.beat };
@@ -839,7 +1001,11 @@ export class Presentation {
       this.mapReturn = { index: target.index, beat: target.beat, mode: 'graph', camera: source ? { ...getGraphView(source)!.camera.pose } : undefined, selected: this.graphState!.activeNode };
       this.graphState!.miniMapPreview = true;
     }
-    this.enter(index, -1, false, 'paperBurn', { restoreGraph: !complete, expandGraph: complete, nodeId });
+    const source=this.graphViews.get(this.graphState!.id);
+    const alreadyRevealed=source && getGraphView(source)!.visibleStep>=this.graphStep(route);
+    // An explicit return from a deferred lesson must first inscribe its earned
+    // delta. Ordinary returns to an already-visible cue simply restore it.
+    this.enter(index, -1, false, this.guided && complete ? 'page' : 'paperBurn', { restoreGraph: !complete && !!alreadyRevealed, expandGraph: complete, nodeId });
     this.state.beat = complete ? 0 : target.beat; this.setBeats(this.current!, this.state.beat);
   }
   private announce(text: string) { this.ui.get('.announcer').textContent = text; }
@@ -855,6 +1021,20 @@ export class Presentation {
     }
     this.ui.root.dataset.effects = String(this.state.effects);
     this.ui.root.dataset.scene = closed ? 'cover' : this.slides[this.state.index].id;
+    const cue = this.ui.get('.presenter-cue'), sequence = this.current && sceneSequences(this.current.element)[0];
+    cue.hidden = !this.guided || closed || !this.cueVisible;
+    cue.querySelector('span')!.textContent = this.timeline.active || this.state.phase !== 'ready' ? 'Inscribing…  → / ← finish motion' : sequence
+      ? this.current?.element.querySelector('[data-demo-exploring="true"]') ? 'Exploring · → Next teaching beat · ← Previous · Tab away from sliders'
+        : `Demo ${sequence.step + 1}/${sequence.maxStep + 1} · → Next · ← Previous${sequence.labels?.[sequence.step] ? ` · ${sequence.labels[sequence.step]}` : ''}`
+      : this.current?.slide.routeStep !== undefined && !this.graphState?.miniMapPreview && this.guided?.current.nodeId ? this.guided.current.advanceOnly ? '→ Trace next idea · ← Previous · Drag optional' : `→ Enter ${this.guided.current.nodeId} · ← Previous · Drag optional` : '→ Next step · ← Previous';
+    cue.querySelector('span')!.title = sequence?.labels?.[sequence.step] ?? '';
+    cue.querySelector<HTMLButtonElement>('.restart-demo')!.hidden = !sequence;
+    cue.querySelector<HTMLButtonElement>('.restart-demo')!.disabled = this.state.phase !== 'ready';
+    if (this.guided) {
+      this.ui.root.dataset.guidedStep = String(this.guided.cursor);
+      this.ui.root.dataset.unlockedNodes = [...this.guided.unlocked].join(',');
+      this.ui.root.dataset.completedNodes = [...this.guided.completed].join(',');
+    }
     this.ui.host.setAttribute('aria-busy', String(!closed && this.state.phase !== 'ready'));
     this.ui.get('.page-position').textContent = closed ? '—' : `${String(this.state.index + 1).padStart(2, '0')} / ${String(this.slides.length).padStart(2, '0')}`;
     this.ui.get('[data-action="effects"]').setAttribute('aria-pressed', String(this.state.effects));

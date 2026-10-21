@@ -1,4 +1,4 @@
-# Grimoire — Phase 1 template engine
+# Grimoire — reusable presentation engine
 
 A reusable Vite + TypeScript presentation engine styled as an illustrated fantasy-anime grimoire: painted dark leather, heat-stamped lettering, manuscript parchment, and spatial ember-to-ink inscription.
 
@@ -6,7 +6,7 @@ Falling-paper transitions keep the old page intact beneath an opaque, fully
 printed incoming sheet, with air drag, drift, moving shadow and a small landing
 settle. See [current falling-paper behavior and verification](docs/FALLING_PAPER.md).
 
-**Template only.** The default **Atlas of Wonder** is a complete engine showcase. Calculus I remains a content specification pending review.
+The default **Atlas of Wonder** remains the engine showcase. The complete **Calculus I midterm review** is available at `?deck=calculus-1`; see its [presenter guide and content organization](src/content/calculus-1/README.md).
 
 To create another presentation, copy `src/content/sample/` or `src/content/plain/` to a new folder and edit only that folder. It is discovered automatically at `?deck=<folder>`. See [CONTENT_AUTHORING.md](CONTENT_AUTHORING.md) for the working contract.
 
@@ -33,6 +33,7 @@ The build runs strict TypeScript checking and writes a static site to `dist/`. S
 | Query | Purpose |
 | --- | --- |
 | none or `?deck=showcase` (`demo` alias) | Complete showcase: ink, three paper burn-throughs, single/parallel graph growth, horizontal/vertical layouts, node demos, two recap leaves, final map and closing |
+| `?deck=calculus-1` | Complete midterm review: F0 + 33 knowledge nodes, five goal branches, mathematical demonstrations, progressive connections and optional six-leaf recap |
 | `?deck=sample` | Minimal content-folder example with a two-node graph and no second act; copy this folder |
 | `?deck=plain` | Different subject, two pages, no diagram, graph, drop or epilogue |
 | `?deck=orientation-check&case=THVH` | Content-only orientation/preview specimen; also FH, FV, THV, TVH and TVHV |
@@ -116,7 +117,7 @@ fixed-vertical or step-indexed timeline orientation. Mini-map previews the autho
 final state without changing slideshow progress. The main optional cinematic
 setting remains `secondActEnding: { enabled: boolean }`.
 
-The next step is Phase 1 review, before implementing the full Calculus I deck.
+The Calculus I deck is ready for local content review. It adds no past-exam problem mode and does not change the default showcase.
 
 [Graph reveal fix v2](docs/GRAPH_REVEAL_FIX_V2.md) adds repeatable graph entrance
 inscription and a centralized 2300 ms full-map budget after physical travel.

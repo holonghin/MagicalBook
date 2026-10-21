@@ -1,4 +1,9 @@
-# Template verification
+# Template and content verification
+
+The complete Calculus I deck is available at `?deck=calculus-1`. See its
+[current content QA report](../src/content/calculus-1/QA.md) for node/page audits,
+mathematical controls, projection sizing, touch/offline tests and inspected
+animation frames. The sections below retain the template development history.
 
 The current falling-paper amendment is [physical occlusion and printed
 parchment](FALLING_PAPER.md). It supersedes historical drop/ink overlap checks:
@@ -186,3 +191,6 @@ See `CONTENT_AUTHORING.md` for the complete copy-and-edit procedure.
 
 
 
+
+
+Calculus content/visual flow v4 adds the student-friendly L’Hôpital checklist, horizontal Chain Rule result, farmer’s fencing model, collision-free change/error callouts and continuous X1–X3 teaching. See [the current content report](../src/content/calculus-1/QA_V4.md) for checks, file inventory and limitations.

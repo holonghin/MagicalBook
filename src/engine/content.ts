@@ -2,7 +2,7 @@ import type { BlockRenderer, Deck, DeckConfig, RouteGraph, Slide } from './types
 import { graphOrientation } from './graph-orientation';
 
 export interface ContentNode { id: string; slides: Slide[] }
-export type ContentStep = string | { id?: string; graphStep: number; title: string; layout?: 'horizontal' | 'vertical' };
+export type ContentStep = string | { id?: string; graphStep: number; title: string; layout?: 'horizontal' | 'vertical'; routeAdvance?: Slide['routeAdvance'] };
 export interface PresentationContent {
   config: DeckConfig;
   chapters: Slide[];
@@ -14,6 +14,7 @@ export interface PresentationContent {
   secondActEnding: { enabled: boolean } | boolean;
   ending?: Slide[];
   demos?: Record<string, BlockRenderer>;
+  guidedRoute?: Deck['guidedRoute'];
 }
 
 /** Content authors describe scenes; this compiler owns the presentation grammar. */
@@ -29,7 +30,7 @@ export function definePresentation(content: PresentationContent): Deck {
     if (typeof step === 'string') return step;
     if (!content.graph) throw new Error('A graph sequence step requires graph.ts.');
     const id = step.id ?? `@graph-${i}`;
-    scenes.push(graphScene(id, step.title, step.graphStep, step.layout));
+    scenes.push({ ...graphScene(id, step.title, step.graphStep, step.layout), routeAdvance: step.routeAdvance });
     return id;
   });
   const secondAct = typeof content.secondActEnding === 'boolean' ? content.secondActEnding : content.secondActEnding.enabled;
@@ -46,7 +47,7 @@ export function definePresentation(content: PresentationContent): Deck {
   }
   const deck: Deck = {
     config: content.config, sections: [{ id: 'content', title: content.config.coverTitle, slides: scenes }],
-    flow, routeGraph: content.graph, finalGraphId, renderers: content.demos, contentVersion: 2,
+    flow, routeGraph: content.graph, finalGraphId, renderers: content.demos, contentVersion: 2, guidedRoute: content.guidedRoute,
   };
   validateDeck(deck);
   return deck;
@@ -74,14 +75,32 @@ export function validateDeck(deck: Deck) {
   }
   for (const id of deck.flow ?? []) if (!ids.has(id)) throw new Error(`Unknown sequence slide: ${id}`);
   const graph = deck.routeGraph;
+  if (deck.guidedRoute) {
+    if (!graph || !deck.guidedRoute.steps.length) throw new Error('A guided route needs graph steps.');
+    const seen = new Set<string>();
+    for (const step of deck.guidedRoute.steps) {
+      const slide = slides.find(s => s.id === step.sceneId);
+      if (!slide || slide.routeStep === undefined || seen.has(step.sceneId)) throw new Error(`Invalid guided scene: ${step.sceneId}`);
+      seen.add(step.sceneId);
+      for (const id of [...step.unlock, ...(step.nodeId ? [step.nodeId] : [])])
+        if (!graph.nodes.some(n => n.id === id)) throw new Error(`Unknown guided node: ${id}`);
+    }
+  }
   if (!graph) return;
+  for (const slide of slides.filter(s => s.routeAdvance)) {
+    const advance = slide.routeAdvance!;
+    if (slide.routeStep === undefined || !graph.nodes.some(n => n.id === advance.fromNode && n.role === 'branch'))
+      throw new Error(`Invalid route-advance branch on ${slide.id}`);
+    if (advance.afterNode && !graph.nodes.some(n => n.id === advance.afterNode))
+      throw new Error(`Unknown route-advance prerequisite on ${slide.id}: ${advance.afterNode}`);
+  }
   const order = deck.flow ? deck.flow.map(id => slides.find(s => s.id === id)!) : slides;
   graphOrientation(graph, order.filter(s => s.routeStep !== undefined && s.kind !== 'finalGraph'));
   const nodeIds = new Set<string>(), edgeIds = new Set<string>();
   for (const node of graph.nodes) {
     if (nodeIds.has(node.id)) throw new Error(`Duplicate graph node: ${node.id}`);
     nodeIds.add(node.id);
-    if (!node.slideIds.length) throw new Error(`Node ${node.id} needs at least one slide.`);
+    if (!node.slideIds.length && node.role !== 'branch') throw new Error(`Node ${node.id} needs at least one slide.`);
     for (const id of node.slideIds) if (!ids.has(id)) throw new Error(`Node ${node.id} references missing slide: ${id}`);
   }
   for (const edge of graph.edges) {

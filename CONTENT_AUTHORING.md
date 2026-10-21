@@ -1,5 +1,17 @@
 # Content-folder authoring
 
+The complete `src/content/calculus-1/` is also a subject-content example, with
+mathematical demonstrations and a guided branch route. It remains opt-in through
+`?deck=calculus-1`; the default generic showcase is unchanged.
+
+Two optional graph fields support larger guided presentations. A graph cue may
+declare `routeAdvance: { fromNode, afterNode? }`: clicking that branch advances
+only to the next authored cue, after the prerequisite node has been visited.
+An edge may declare `layoutConstraint: false` when it is a semantic cross-link
+that should render and burn normally without changing the teaching-tree ranks.
+Omitting either field preserves the existing behavior. Mathematical meanings and
+any connection legend remain content-owned.
+
 A presentation lives entirely in `src/content/<folder>/`. Copy `sample/` for a
 small graph presentation or `plain/` for a graph-free presentation. Use `showcase/`
 as the full reference. Open `?deck=<folder>`; Vite discovers every `deck.ts`
@@ -376,3 +388,76 @@ sequence of distinct profiles; `data-drop-seed` records each invocation's seed.
 Normal playback samples fresh seeds. Content authors configure none of these
 motion parameters. Reduced motion settles directly as before.
 
+## Optional guided teaching routes
+
+Decks may declare `guidedRoute: { steps: [{ sceneId, nodeId, unlock }] }` in
+their content entry. Each scene is an authored graph cue; `unlock` lists the
+newly accessible nodes, independently of the cue's visual `graphStep`. An
+optional `advanceOnly: true` makes a branch overview advance to its next cue
+instead of opening a lesson. A final step without `nodeId` continues the normal
+ending. Decks omitting this option keep their original navigation.
+
+Right/Enter enters the current teaching node. Right finishes its demo beats and
+pages, then returns to the next graph cue. Escape returns without advancing;
+past-node revisits leave the scheduled lesson unchanged. Mini-map previews temporarily allow every content node to be opened, including untaught
+lessons. A branch with `slideIds: []` is a non-interactive category label and
+needs no placeholder page. Browsing does not advance or unlock the guided teaching route; leaving
+the preview restores the normal teaching locks. Left retraces the teaching cursor and restores
+the previous lesson's final page. Visibility, access, visits and completion are
+separate states. Home closes directly; a normal cover opening restarts teaching.
+
+For a multi-step subject demo, use `demoSequence` from
+`src/components/demo-sequence.ts`. Create one controller per rendered scene,
+provide the last step number and a reversible render callback, and call
+`setStep(0)` after constructing its controls. Buttons call `request(step)`;
+Right/Left use the same controller. The callback can return newly inscribed
+elements; the shared presentation clock applies the standard magical reveal.
+An optional `transition(from, to, progress)` interpolates diagram geometry on
+that same clock. No independent slide timer or global mutable demo state is
+needed. Keep the scenario, formulas, labels and styling in the content folder.
+
+
+
+The guided presenter now retains known graph ink across ordinary node returns;
+only the next authored delta is burned in. Long primary routes establish source
+context and settle locally on their destination; semantic cross-links do not
+force a global fit. Mini-map remains a separate final-state preview. The quiet
+presenter cue can be hidden with C and offers a current-demo restart.
+
+A subject may author labelled semantic states with its own helper around
+`demoSequence`. The Calculus folder's `teachingBeats` is one example: each state
+contains mathematically valid values, and an explicit list of numeric fields
+may interpolate on the shared clock. Do not infer teaching progression by
+clicking controls or traversing widget DOM. Manual exploration must remain
+optional; every required teaching observation must be reachable through the
+registered sequence.
+
+
+### Continuous guided lessons
+
+An optional `continuationGroup` on adjacent `guidedRoute.steps` keeps a coherent
+teaching demonstration on the page across node boundaries. Each step still has
+its own node ID, slides, unlocks and completion state. The first cue is shown;
+later cues inside that group are deferred. After the group, the retained graph
+reveals the accumulated nodes and paths together. Left crosses the same boundary
+back to the preceding node's final demonstration beat; Home and Mini-map keep
+their existing behavior. Use this only for a single developing mathematical or
+subject-specific story, not merely because two nodes share a renderer.
+
+For state continuity, a demo's registered `DemoSequence` can expose
+`continuity: { key, capture, restore, reset? }`. Matching keys transfer
+content-owned state. Mark its figure with `data-demo-continuity` to keep the
+illustration visible while the new title, equation and caption inscribe.
+`reset` clears imported state when a fresh slideshow opens from the cover.
+The engine has no subject IDs, slider names or mathematical state in this API.
+The Calculus folder's X1 → X2 → X3 group is the reference implementation.
+
+
+For a persistent demo, `continuity.revealTargets()` can return only the newly
+introduced annotation elements after `restore`. The common scene reveal then
+inscribes those elements while leaving the existing illustration visible.
+Use stable DOM annotation containers so masks stay attached to their content.
+A moving demo can set `DemoSequence.revealAfterMotion` to let its existing camera
+or geometry motion finish before the standard inscription of `targets`. Both
+phases share the presentation timeline, including seek, skip, pause and cleanup;
+no additional timers or per-slide effect settings are needed.

@@ -17,9 +17,9 @@ try {
   validateDeck(deck);
   const registry = new RendererRegistry().register('route', routeGraph).register('mathml', mathml);
   for (const [id, renderer] of Object.entries(deck.renderers ?? {})) registry.register(id, renderer);
-  // Local formula fonts are ready before measuring any later node or going
+  // Local manuscript and formula fonts are ready before measuring any later node or going
   // offline. No remote fonts or CDN typesetter are involved.
-  await Promise.all([...document.fonts].filter(font => font.family.startsWith('KaTeX')).map(font => font.load()));
+  await Promise.all([...document.fonts].map(font => font.load()));
   await document.fonts.ready;
   const presentation = new Presentation(root, deck, registry);
 

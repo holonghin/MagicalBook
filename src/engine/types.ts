@@ -8,7 +8,7 @@ export interface Timings {
   closing: number;
   erase: number;
 }
-export type Action = 'next' | 'back' | 'skip' | 'replay' | 'home' | 'fullscreen' | 'effects' | 'pause' | 'escape' | 'minimap';
+export type Action = 'next' | 'back' | 'skip' | 'replay' | 'home' | 'fullscreen' | 'effects' | 'pause' | 'escape' | 'minimap' | 'cue';
 export interface DeckConfig {
   id: string;
   coverTitle: string;
@@ -61,6 +61,8 @@ export interface Slide {
   restoreSceneId?: string;
   focus?: { blockId: string; scale: number };
   routeStep?: number;
+  /** Optional guided route: this cue can be traced by its branch seal. */
+  routeAdvance?: { fromNode: string; afterNode?: string };
   notes?: string;
   kind?: 'ordinary' | 'chapter' | 'graph' | 'node' | 'recap' | 'finalGraph';
   graphLayout?: 'horizontal' | 'vertical';
@@ -72,8 +74,9 @@ export interface RouteGraph {
   orientation?: GraphOrientationPolicy;
   /** Selected by content; the engine never forces this on graph decks. */
   transitions?: { enterNode?: SceneTransition; returnToGraph?: SceneTransition };
+  /** A branch may have no slides: it remains a non-interactive category. */
   nodes: { id: string; label: string; shortLabel?: string; note?: string; role?: 'branch'; x?: number; y?: number; slideIds: string[]; unlockStep: number }[];
-  edges: { id: string; from: string; to: string; unlockStep: number }[];
+  edges: { id: string; from: string; to: string; unlockStep: number; layoutConstraint?: boolean }[];
 }
 export type GraphOrientationPolicy =
   | { mode: 'fixed-horizontal' | 'fixed-vertical' }
@@ -88,6 +91,8 @@ export interface Deck {
   finalGraphId?: string;
   renderers?: Record<string, BlockRenderer>;
   contentVersion?: 2;
+  /** Optional presenter-led route. Visibility still belongs to routeStep. */
+  guidedRoute?: { steps: { sceneId: string; nodeId?: string; unlock: string[]; advanceOnly?: boolean; continuationGroup?: string }[] };
 }
 export interface PresenterState {
   phase: 'closed' | 'opening' | 'ready' | 'turning' | 'erasing' | 'revealing' | 'dropping' | 'handoff' | 'closing' | 'graphing';

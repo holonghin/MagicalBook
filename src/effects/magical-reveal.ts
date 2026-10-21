@@ -3,6 +3,7 @@ import { random } from './random';
 
 const NS = 'http://www.w3.org/2000/svg';
 let serial = 0;
+const parents = new WeakMap<HTMLElement, { count: number; position: string }>();
 interface Origin { x: number; y: number; phase: number; speed: number; contour?: { x: number; y: number }[] }
 
 /** Spatial masks reveal the real, selectable DOM. The gold copy exists only at
@@ -21,26 +22,39 @@ export class MagicalReveal {
   private erasePath = document.createElementNS(NS, 'path');
   private mask = '';
   private lastProgress = -1;
+  private parent: HTMLElement;
+  private id = '';
 
   constructor(private target: HTMLElement, seed: number, private mode: 'in' | 'out' = 'in', regions?: 1 | 2 | 3) {
+    this.parent = target.parentElement!;
+    const lease = parents.get(this.parent);
+    if (lease) lease.count++;
+    else {
+      parents.set(this.parent, { count: 1, position: this.parent.style.position });
+      if (getComputedStyle(this.parent).position === 'static') this.parent.style.position = 'relative';
+    }
     const rect = target.getBoundingClientRect();
-    this.width = target.offsetWidth;
-    this.height = target.offsetHeight;
-    const scale = rect.width / this.width || 1;
+    this.width = Math.max(1, target.offsetWidth);
+    this.height = Math.max(1, target.offsetHeight);
+    const scaleX = rect.width / this.width || 1, scaleY = rect.height / this.height || 1;
     const rng = random(seed);
     const rows = new Map<number, { left: number; right: number; y: number; height: number }>();
     const walker = document.createTreeWalker(target, NodeFilter.SHOW_TEXT);
     while (walker.nextNode()) {
       if (!walker.currentNode.textContent?.trim()) continue;
+      // KaTeX's accessibility tree contains the complete TeX source in a
+      // clipped box. It is not painted geometry and must not seed the mask.
+      if (walker.currentNode.parentElement?.closest('.katex-mathml,script,style')) continue;
       const range = document.createRange();
       range.selectNodeContents(walker.currentNode);
       for (const line of range.getClientRects()) {
-        const y = (line.top - rect.top) / scale;
+        const y = (line.top - rect.top) / scaleY;
         const key = Math.round(y / 6);
-        const left = (line.left - rect.left) / scale;
-        const right = (line.right - rect.left) / scale;
+        const left = Math.max(-16, (line.left - rect.left) / scaleX);
+        const right = Math.min(this.width + 16, (line.right - rect.left) / scaleX);
+        if (right <= left || y < -32 || y > this.height + 32) continue;
         const row = rows.get(key);
-        rows.set(key, { left: Math.min(row?.left ?? left, left), right: Math.max(row?.right ?? right, right), y: y + line.height / scale / 2, height: line.height / scale });
+        rows.set(key, { left: Math.min(row?.left ?? left, left), right: Math.max(row?.right ?? right, right), y: y + line.height / scaleY / 2, height: line.height / scaleY });
       }
     }
     // Geometry gets origins over the whole illustration, too.
@@ -73,6 +87,7 @@ export class MagicalReveal {
     // once, rather than for three concentric contours on every animation frame.
     this.origins.forEach(origin => this.contour(origin));
     const id = `ink-${++serial}`;
+    this.id = id; target.dataset.revealId = id;
     this.svg.classList.add('effect-defs');
     this.svg.setAttribute('aria-hidden', 'true');
     const defs = document.createElementNS(NS, 'defs');
@@ -88,22 +103,40 @@ export class MagicalReveal {
     const mask = document.createElementNS(NS, 'mask');
     mask.id = `${id}-erase`;
     mask.setAttribute('maskUnits', 'userSpaceOnUse');
-    mask.setAttribute('x', '0'); mask.setAttribute('y', '0');
-    mask.setAttribute('width', String(this.width)); mask.setAttribute('height', String(this.height));
+    mask.setAttribute('maskContentUnits', 'userSpaceOnUse');
+    mask.setAttribute('x', '-16'); mask.setAttribute('y', '-16');
+    mask.setAttribute('width', String(this.width + 32)); mask.setAttribute('height', String(this.height + 32));
     mask.style.maskType = 'luminance';
     const background = document.createElementNS(NS, 'rect');
-    background.setAttribute('width', String(this.width)); background.setAttribute('height', String(this.height));
+    background.setAttribute('x', '-16'); background.setAttribute('y', '-16');
+    background.setAttribute('width', String(this.width + 32)); background.setAttribute('height', String(this.height + 32));
     background.setAttribute('fill', 'white'); this.erasePath.setAttribute('fill', 'black');
     mask.append(background, this.erasePath); defs.append(mask);
     this.mask = `url(#${id}-erase)`;
-    target.parentElement!.append(this.svg);
+    this.parent.append(this.svg);
     this.glow = target.cloneNode(true) as HTMLElement;
-    this.glow.removeAttribute('id');
-    this.glow.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+    this.glow.querySelectorAll('.ink-front,.effect-defs').forEach(e => e.remove());
+    const ids = new Map<string, string>();
+    for (const element of [this.glow, ...this.glow.querySelectorAll('[id]')]) {
+      if (element.id) { const old = element.id; element.id = `${id}-copy-${old}`; ids.set(old, element.id); }
+    }
+    for (const element of [this.glow, ...this.glow.querySelectorAll('*')]) {
+      for (const attr of [...element.attributes]) {
+        let value = attr.value;
+        ids.forEach((next, old) => { value = value.replaceAll(`url(#${old})`, `url(#${next})`); if (value === `#${old}`) value = `#${next}`; });
+        if (value !== attr.value) element.setAttribute(attr.name, value);
+      }
+    }
     this.glow.classList.add('ink-front');
+    this.glow.removeAttribute('data-reveal-id'); this.glow.dataset.inkFor = id;
     this.glow.setAttribute('aria-hidden', 'true');
     this.glow.inert = true;
-    target.parentElement!.append(this.glow);
+    // A demo annotation can be anywhere within a flex/grid widget. The old
+    // inset:0 stretched every copy over that widget, moving formulas/buttons.
+    // Offset boxes belong to the SAME positioned parent as the original.
+    for (const [name, value] of Object.entries({ inset: 'auto', left: `${target.offsetLeft}px`, top: `${target.offsetTop}px`, width: `${this.width}px`, height: `${this.height}px`, margin: '0', boxSizing: 'border-box', minWidth: '0', minHeight: '0', maxWidth: 'none', maxHeight: 'none' }))
+      this.glow.style.setProperty(name.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`), value, 'important');
+    this.parent.append(this.glow);
     this.clip = `url(#${id}-body)`;
     if (mode === 'in') target.style.clipPath = this.clip;
     else target.style.maskImage = this.mask;
@@ -164,11 +197,15 @@ export class MagicalReveal {
     this.glow.style.visibility = 'hidden';
   }
   dispose() {
+    if (this.disposed) return;
     this.disposed = true;
     this.target.style.clipPath = '';
     this.target.style.maskImage = '';
     this.target.style.opacity = '';
     this.glow.remove();
     this.svg.remove();
+    if (this.target.dataset.revealId === this.id) delete this.target.dataset.revealId;
+    const lease = parents.get(this.parent)!;
+    if (--lease.count === 0) { this.parent.style.position = lease.position; parents.delete(this.parent); }
   }
 }
